@@ -1,6 +1,7 @@
 export type Role = 'hq' | 'store'
 export type ContractStatus = 'draft' | 'active' | 'renewed' | 'expired' | 'cancelled'
-export type FileKind = 'scan' | 'attachment' | 'template'
+// 文件角色：original=合同正本 / attachment=附件 / scan=扫描件 / invoice=发票 / template=模板
+export type FileKind = 'original' | 'attachment' | 'scan' | 'invoice' | 'template'
 export type NotifChannel = 'inapp' | 'email' | 'wecom' | 'dingtalk' | 'feishu'
 
 export interface Store {
@@ -158,6 +159,16 @@ export interface AuditLog {
 }
 
 export const CATEGORIES = ['租赁', '采购', '服务', '劳务', '装修', '广告', '加盟', '其他'] as const
+
+export const FILE_KIND_LABEL: Record<FileKind, string> = {
+  original: '合同正本',
+  attachment: '附件',
+  scan: '扫描件',
+  invoice: '发票',
+  template: '模板',
+}
+
+export const FILE_KIND_ORDER: FileKind[] = ['original', 'attachment', 'scan', 'invoice']
 
 export const STATUS_LABEL: Record<ContractStatus, string> = {
   draft: '草稿',

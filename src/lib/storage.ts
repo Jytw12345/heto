@@ -39,6 +39,15 @@ export const ALLOWED_MIME = [
   'application/x-rar-compressed',
 ]
 
+// 扩展名白名单：浏览器对 .docx/.doc/.zip 经常上报空或错误的 MIME，
+// 仅靠 MIME 校验会把合法文件误拒。这里以扩展名为准、MIME 为辅，二者任一命中即放行。
+export const ALLOWED_EXT = [
+  'pdf',
+  'jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'bmp', 'gif',
+  'doc', 'docx',
+  'zip', 'rar',
+]
+
 export interface UploadResult {
   path: string
   name: string
@@ -49,7 +58,7 @@ export interface UploadResult {
 
 export class StorageError extends Error {}
 
-function extOf(name: string): string {
+export function extOf(name: string): string {
   const i = name.lastIndexOf('.')
   return i >= 0 ? name.slice(i + 1).toLowerCase() : 'bin'
 }
@@ -92,8 +101,15 @@ export function validateFile(file: File): string | null {
     return `文件超过 ${(MAX_FILE_SIZE / 1024 / 1024 / 1024).toFixed(0)}GB，请先压缩或分卷后再传`
   }
   if (file.size === 0) return '文件为空'
-  if (ALLOWED_MIME.length && file.type && !ALLOWED_MIME.includes(file.type)) {
-    return `不支持的文件类型：${file.type}（仅 PDF / 图片 / Word / 压缩包）`
+
+  const ext = extOf(file.name)
+  const mimeOk = !!file.type && ALLOWED_MIME.includes(file.type)
+  const extOk = !!ext && ALLOWED_EXT.includes(ext)
+
+  // 扩展名或 MIME 任一命中即放行；两者都没有才拒（避免 .docx 等被空 MIME 误杀）
+  if (!extOk && !mimeOk) {
+    const hint = ext ? `扩展名 .${ext}` : file.type || '未知类型'
+    return `不支持的文件类型：${hint}（仅支持 PDF / 图片 / Word / 压缩包）`
   }
   return null
 }
