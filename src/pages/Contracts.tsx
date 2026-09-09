@@ -1,0 +1,366 @@
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
+import * as XLSX from 'xlsx'
+import { Button, Card, Empty, Field, Modal, Pill, StatusBadge, inputCls } from '../components/ui'
+import { useToast } from '../components/Toast'
+import { useAuth } from '../hooks/useAuth'
+import ContractForm from './ContractForm'
+import { useStores } from '../hooks/useStores'
+import { daysLeft, dueLevel, formatDate, formatMoney } from '../lib/format'
+import { CATEGORIES, STATUS_LABEL, type Contract, type ContractStatus } from '../types'
+
+const STATUS_OPTIONS: { v: ContractStatus | 'all'; l: string }[] = [
+  { v: 'all', l: '全部' },
+  { v: 'draft', l: '草稿' },
+  { v: 'active', l: '履行中' },
+  { v: 'renewed', l: '已续签' },
+  { v: 'expired', l: '已到期' },
+  { v: 'cancelled', l: '已作废' },
+]
+
+export default function Contracts() {
+  const { isHq, can } = useAuth()
+  const { push } = useToast()
+  const navigate = useNavigate()
+  const stores = useStores()
+
+  const [rows, setRows] = useState<Contract[]>([])
+  const [loading, setLoading] = useState(true)
+  const [editing, setEditing] = useState<Contract | null>(null)
+  const [formOpen, setFormOpen] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState<Contract | null>(null)
+  const [tags, setTags] = useState<{ name: string }[]>([])
+
+  // 筛选
+  const [q, setQ] = useState('')
+  const [storeFilter, setStoreFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState<ContractStatus | 'all'>('all')
+  const [categoryFilter, setCategoryFilter] = useState('all')
+  const [tagFilter, setTagFilter] = useState('all')
+  const [amountMin, setAmountMin] = useState('')
+  const [amountMax, setAmountMax] = useState('')
+  const [endBefore, setEndBefore] = useState('')
+  const [endAfter, setEndAfter] = useState('')
+  const [showAdvanced, setShowAdvanced] = useState(false)
+
+  // 批量
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [batchOpen, setBatchOpen] = useState(false)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    const [{ data }, { data: ts }] = await Promise.all([
+      supabase.from('v_contracts').select('*').order('end_at', { ascending: true, nullsFirst: false }),
+      supabase.from('contract_tags').select('name').order('name'),
+    ])
+    setRows((data as Contract[]) ?? [])
+    setTags((ts as { name: string }[]) ?? [])
+    setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const filtered = useMemo(() => {
+    return rows.filter((r) => {
+      if (q) {
+        const s = q.toLowerCase()
+        if (
+          !(
+            r.title.toLowerCase().includes(s) ||
+            (r.contract_no ?? '').toLowerCase().includes(s) ||
+            (r.counterparty ?? '').toLowerCase().includes(s)
+          )
+        )
+          return false
+      }
+      if (storeFilter !== 'all' && r.store_id !== storeFilter) return false
+      if (statusFilter !== 'all' && r.status !== statusFilter) return false
+      if (categoryFilter !== 'all' && r.category !== categoryFilter) return false
+      if (tagFilter !== 'all' && !(r.tags ?? []).includes(tagFilter)) return false
+      if (amountMin && (r.amount ?? 0) < Number(amountMin)) return false
+      if (amountMax && (r.amount ?? 0) > Number(amountMax)) return false
+      if (endBefore && r.end_at && r.end_at > endBefore) return false
+      if (endAfter && r.end_at && r.end_at < endAfter) return false
+      return true
+    })
+  }, [rows, q, storeFilter, statusFilter, categoryFilter, tagFilter, amountMin, amountMax, endBefore, endAfter])
+
+  function exportExcel() {
+    const ws = XLSX.utils.json_to_sheet(
+      filtered.map((r) => ({
+        合同名称: r.title,
+        编号: r.contract_no ?? '',
+        门店: r.store_name ?? '',
+        类别: r.category ?? '',
+        对方公司: r.counterparty ?? '',
+        我方主体: r.our_entity ?? '',
+        金额: r.amount ?? '',
+        签订日期: r.signed_at ?? '',
+        生效日期: r.start_at ?? '',
+        到期日期: r.end_at ?? '',
+        状态: STATUS_LABEL[r.status],
+        标签: (r.tags ?? []).join(', '),
+        自动续约: r.auto_renew ? '是' : '否',
+        提前提醒: (r.remind_days ?? []).join(', ') + ' 天',
+        备注: r.note ?? '',
+      })),
+    )
+    ws['!cols'] = [
+      { wch: 30 }, { wch: 16 }, { wch: 12 }, { wch: 8 }, { wch: 18 },
+      { wch: 18 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
+      { wch: 8 }, { wch: 16 }, { wch: 8 }, { wch: 16 }, { wch: 24 },
+    ]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, '合同清单')
+    XLSX.writeFile(wb, `contracts-${new Date().toISOString().slice(0, 10)}.xlsx`)
+    supabase.rpc('write_audit', { p_action: 'contract.export', p_resource: 'contract', p_payload: { count: filtered.length } })
+  }
+
+  async function bulkSetStatus(s: ContractStatus) {
+    if (selected.size === 0) return
+    const { error } = await supabase.from('contracts').update({ status: s }).in('id', [...selected])
+    if (error) return push(error.message, 'err')
+    push(`已更新 ${selected.size} 条`, 'ok')
+    setSelected(new Set())
+    setBatchOpen(false)
+    load()
+  }
+
+  async function bulkDelete() {
+    if (selected.size === 0) return
+    if (!confirm(`确认删除 ${selected.size} 条合同？关联扫描件会成孤儿文件，需手动清理。`)) return
+    const { error } = await supabase.from('contracts').delete().in('id', [...selected])
+    if (error) return push(error.message, 'err')
+    push(`已删除 ${selected.size} 条`, 'ok')
+    setSelected(new Set())
+    load()
+  }
+
+  async function deleteOne(c: Contract) {
+    const { error } = await supabase.from('contracts').delete().eq('id', c.id)
+    if (error) return push(error.message, 'err')
+    await supabase.rpc('write_audit', {
+      p_action: 'contract.delete',
+      p_resource: 'contract',
+      p_resource_id: c.id,
+      p_store_id: c.store_id,
+    })
+    push('已删除', 'ok')
+    setConfirmDelete(null)
+    load()
+  }
+
+  const allChecked = filtered.length > 0 && filtered.every((r) => selected.has(r.id))
+  const someChecked = selected.size > 0
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            className={`${inputCls} min-w-[200px] flex-1`}
+            placeholder="搜索名称 / 编号 / 对方公司"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+          <select className={inputCls} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)}>
+            {STATUS_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
+          </select>
+          {isHq && (
+            <select className={inputCls} value={storeFilter} onChange={(e) => setStoreFilter(e.target.value)}>
+              <option value="all">全部门店</option>
+              {stores.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          )}
+          <Button variant="ghost" onClick={() => setShowAdvanced((v) => !v)} className={showAdvanced ? 'text-indigo-600' : ''}>
+            {showAdvanced ? '收起筛选' : '高级筛选'}
+          </Button>
+          {can('contract.create') && (
+            <Button variant="primary" onClick={() => { setEditing(null); setFormOpen(true) }}>+ 新建合同</Button>
+          )}
+        </div>
+
+        {showAdvanced && (
+          <div className="mt-3 grid gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Field label="类别">
+              <select className={inputCls} value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+                <option value="all">全部</option>
+                {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+              </select>
+            </Field>
+            <Field label="标签">
+              <select className={inputCls} value={tagFilter} onChange={(e) => setTagFilter(e.target.value)}>
+                <option value="all">全部</option>
+                {tags.map((t) => <option key={t.name}>{t.name}</option>)}
+              </select>
+            </Field>
+            <Field label="金额区间（元）">
+              <div className="flex gap-1">
+                <input className={inputCls} placeholder="最小" value={amountMin} onChange={(e) => setAmountMin(e.target.value)} />
+                <input className={inputCls} placeholder="最大" value={amountMax} onChange={(e) => setAmountMax(e.target.value)} />
+              </div>
+            </Field>
+            <Field label="到期范围">
+              <div className="flex gap-1">
+                <input type="date" className={inputCls} value={endAfter} onChange={(e) => setEndAfter(e.target.value)} />
+                <input type="date" className={inputCls} value={endBefore} onChange={(e) => setEndBefore(e.target.value)} />
+              </div>
+            </Field>
+          </div>
+        )}
+      </Card>
+
+      <Card
+        title={`合同 · ${filtered.length} 条`}
+        extra={
+          <div className="flex flex-wrap gap-2">
+            {can('contract.export') && (
+              <Button onClick={exportExcel}>导出 Excel</Button>
+            )}
+          </div>
+        }
+      >
+        {loading ? (
+          <Empty text="加载中…" />
+        ) : filtered.length === 0 ? (
+          <Empty text="暂无符合条件的合同" />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-400">
+                <tr>
+                  <th className="w-8 py-2">
+                    <input
+                      type="checkbox"
+                      checked={allChecked}
+                      onChange={(e) =>
+                        setSelected(e.target.checked ? new Set(filtered.map((r) => r.id)) : new Set())
+                      }
+                    />
+                  </th>
+                  <th className="px-2 py-2 text-left font-medium">合同</th>
+                  <th className="px-2 py-2 text-left font-medium">门店</th>
+                  <th className="px-2 py-2 text-left font-medium">类别</th>
+                  <th className="px-2 py-2 text-left font-medium">对方</th>
+                  <th className="px-2 py-2 text-right font-medium">金额</th>
+                  <th className="px-2 py-2 text-left font-medium">到期</th>
+                  <th className="px-2 py-2 text-left font-medium">状态</th>
+                  <th className="px-2 py-2 text-right font-medium">操作</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filtered.map((c) => {
+                  const lv = c.status === 'active' ? dueLevel(daysLeft(c.end_at)) : null
+                  return (
+                    <tr key={c.id} className="hover:bg-slate-50">
+                      <td className="py-2">
+                        <input
+                          type="checkbox"
+                          checked={selected.has(c.id)}
+                          onChange={(e) => {
+                            const ns = new Set(selected)
+                            if (e.target.checked) ns.add(c.id)
+                            else ns.delete(c.id)
+                            setSelected(ns)
+                          }}
+                        />
+                      </td>
+                      <td className="px-2 py-2">
+                        <Link to={`/contracts/${c.id}`} className="font-medium text-slate-800 hover:underline">
+                          {c.title}
+                        </Link>
+                        <div className="text-[11px] text-slate-400">
+                          {c.contract_no ?? ''}
+                          {c.tags?.length ? ' · ' + c.tags.join(' · ') : ''}
+                        </div>
+                      </td>
+                      <td className="px-2 py-2 text-slate-600">{c.store_name}</td>
+                      <td className="px-2 py-2 text-slate-600">{c.category ?? '—'}</td>
+                      <td className="px-2 py-2 text-slate-600">{c.counterparty ?? '—'}</td>
+                      <td className="px-2 py-2 text-right tabular-nums">
+                        {can('amount.view') ? formatMoney(c.amount) : <span className="text-slate-300">—</span>}
+                      </td>
+                      <td className="px-2 py-2">
+                        <div className="text-slate-700">{formatDate(c.end_at)}</div>
+                        {lv && <Pill className={lv.className}>{lv.label}</Pill>}
+                      </td>
+                      <td className="px-2 py-2">
+                        <StatusBadge status={c.status} />
+                      </td>
+                      <td className="px-2 py-2 text-right">
+                        <div className="flex justify-end gap-1">
+                          <button
+                            onClick={() => { setEditing(c); setFormOpen(true) }}
+                            className="rounded px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
+                          >
+                            编辑
+                          </button>
+                          {can('contract.delete') && (
+                            <button
+                              onClick={() => setConfirmDelete(c)}
+                              className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                            >
+                              删除
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      {someChecked && can('contract.edit') && (
+        <div className="sticky bottom-4 z-20 mx-auto flex max-w-3xl items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2.5 shadow-lg">
+          <span className="text-sm text-slate-600">已选 {selected.size} 条</span>
+          <div className="flex gap-2">
+            <Button onClick={() => setBatchOpen(true)}>批量改状态</Button>
+            <Button variant="danger" onClick={bulkDelete}>批量删除</Button>
+            <Button variant="ghost" onClick={() => setSelected(new Set())}>取消</Button>
+          </div>
+        </div>
+      )}
+
+      {formOpen && (
+        <ContractForm
+          open={formOpen}
+          contract={editing}
+          stores={stores}
+          onClose={() => { setFormOpen(false); setEditing(null) }}
+          onSaved={load}
+          onAfterCreate={(id) => { setFormOpen(false); setEditing(null); navigate(`/contracts/${id}`) }}
+        />
+      )}
+
+      <Modal open={!!confirmDelete} title="删除合同" onClose={() => setConfirmDelete(null)}>
+        <p className="text-sm text-slate-700">
+          确认删除「{confirmDelete?.title}」？关联的扫描件会留在 COS 桶里成为孤儿文件，需要从 COS 控制台手动清理。
+        </p>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button onClick={() => setConfirmDelete(null)}>取消</Button>
+          <Button variant="danger" onClick={() => confirmDelete && deleteOne(confirmDelete)}>确认删除</Button>
+        </div>
+      </Modal>
+
+      <Modal open={batchOpen} title="批量改状态" onClose={() => setBatchOpen(false)}>
+        <p className="mb-3 text-sm text-slate-600">将所选 {selected.size} 条合同的状态改为：</p>
+        <div className="grid grid-cols-3 gap-2">
+          {(['draft', 'active', 'renewed', 'expired', 'cancelled'] as ContractStatus[]).map((s) => (
+            <Button key={s} onClick={() => bulkSetStatus(s)}>
+              {STATUS_LABEL[s]}
+            </Button>
+          ))}
+        </div>
+      </Modal>
+    </div>
+  )
+}

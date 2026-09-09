@@ -1,0 +1,176 @@
+export type Role = 'hq' | 'store'
+export type ContractStatus = 'draft' | 'active' | 'renewed' | 'expired' | 'cancelled'
+export type FileKind = 'scan' | 'attachment' | 'template'
+export type NotifChannel = 'inapp' | 'email' | 'wecom' | 'dingtalk' | 'feishu'
+
+export interface Store {
+  id: string
+  name: string
+  code: string | null
+  address: string | null
+  manager: string | null
+  phone: string | null
+  active: boolean
+  created_at: string
+}
+
+export interface Profile {
+  id: string
+  store_id: string | null
+  full_name: string | null
+  phone: string | null
+  wechat: string | null
+  role: Role
+  active: boolean
+  /** 细粒度权限位覆盖（空对象 = 走 role 默认权限） */
+  permissions: Permissions
+  last_login_at: string | null
+  created_at: string
+}
+
+/** 细粒度权限位 */
+export type PermKey =
+  | 'contract.create'    // 新建合同
+  | 'contract.edit'      // 编辑合同
+  | 'contract.delete'    // 删除合同
+  | 'contract.export'    // 导出 Excel
+  | 'contract.renew'     // 续签
+  | 'file.upload'        // 上传扫描件
+  | 'file.download'      // 下载扫描件
+  | 'file.delete'        // 删除扫描件
+  | 'amount.view'        // 看到金额字段
+  | 'amount.edit'        // 修改金额字段
+  | 'reminder.manage'    // 改提醒规则
+  | 'channel.manage'     // 配推送渠道
+  | 'store.manage'       // 管门店
+  | 'user.manage'        // 管账号（含改 role/permissions）
+  | 'audit.view'         // 看审计日志
+  | 'template.manage'    // 管合同模板
+  | 'tag.manage'         // 管合同标签
+
+export type Permissions = Partial<Record<PermKey, boolean>>
+
+export interface Contract {
+  id: string
+  store_id: string
+  title: string
+  contract_no: string | null
+  counterparty: string | null
+  our_entity: string | null
+  category: string | null
+  tags: string[]
+  amount: number | null
+  signed_at: string | null
+  start_at: string | null
+  end_at: string | null
+  remind_days: number[]
+  reminder_channels: NotifChannel[]
+  auto_renew: boolean
+  status: ContractStatus
+  note: string | null
+  template_id: string | null
+  renewed_from: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+  store_name?: string
+  days_left?: number
+  file_count?: number
+}
+
+export interface ContractFile {
+  id: string
+  contract_id: string
+  store_id: string
+  file_path: string
+  file_name: string
+  mime_type: string | null
+  size_bytes: number
+  sha256: string | null
+  kind: FileKind
+  uploaded_by: string | null
+  created_at: string
+}
+
+export interface ContractTag {
+  id: string
+  store_id: string | null  // null = 全局
+  name: string
+  color: string
+  created_at: string
+}
+
+export interface ContractTemplate {
+  id: string
+  name: string
+  category: string | null
+  our_entity: string | null
+  default_remind_days: number[]
+  fields: Record<string, unknown>
+  note: string | null
+  active: boolean
+  created_at: string
+}
+
+export interface NotifChannelConfig {
+  id: string
+  store_id: string | null
+  kind: 'wecom' | 'dingtalk' | 'feishu' | 'webhook' | 'email'
+  name: string
+  url: string
+  active: boolean
+  created_at: string
+}
+
+export interface ReminderRule {
+  id: string
+  store_id: string | null
+  category: string | null
+  lead_days: number[]
+  template: string | null
+  channels: NotifChannel[]
+  active: boolean
+}
+
+export interface AppNotification {
+  id: string
+  user_id: string
+  contract_id: string | null
+  title: string
+  body: string | null
+  level: 'info' | 'warning' | 'urgent'
+  read_at: string | null
+  created_at: string
+}
+
+export interface AuditLog {
+  id: string
+  actor_id: string | null
+  actor_email: string | null
+  action: string
+  resource: string | null
+  resource_id: string | null
+  store_id: string | null
+  payload: Record<string, unknown> | null
+  ip: string | null
+  user_agent: string | null
+  created_at: string
+}
+
+export const CATEGORIES = ['租赁', '采购', '服务', '劳务', '装修', '广告', '加盟', '其他'] as const
+
+export const STATUS_LABEL: Record<ContractStatus, string> = {
+  draft: '草稿',
+  active: '履行中',
+  renewed: '已续签',
+  expired: '已到期',
+  cancelled: '已作废',
+}
+
+export const STATUS_TONE: Record<ContractStatus, string> = {
+  draft: 'bg-slate-100 text-slate-600',
+  active: 'bg-emerald-50 text-emerald-700',
+  renewed: 'bg-blue-50 text-blue-700',
+  expired: 'bg-red-50 text-red-700',
+  cancelled: 'bg-gray-100 text-gray-400 line-through',
+}
