@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import * as XLSX from 'xlsx'
-import { Button, Card, Empty, Field, Modal, Pill, StatusBadge, inputCls, inputClsInline } from '../components/ui'
+import { Button, Card, Empty, Field, Modal, Pill, Spinner, StatCard, StatusBadge, inputCls, inputClsInline } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { useAuth } from '../hooks/useAuth'
 import ContractForm from './ContractForm'
@@ -96,6 +96,7 @@ export default function Contracts() {
 
   // 表格底部统计条
   const stats = useMemo(() => {
+    let total = filtered.length
     let active = 0, expiring = 0, expired = 0
     for (const r of filtered) {
       if (r.status === 'active') {
@@ -109,7 +110,7 @@ export default function Contracts() {
         expired++
       }
     }
-    return { active, expiring, expired }
+    return { total, active, expiring, expired }
   }, [filtered])
 
   const hasFilter =
@@ -205,14 +206,51 @@ export default function Contracts() {
 
   return (
     <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatCard
+          label="合同总数"
+          value={stats.total}
+          tone="indigo"
+          icon={<IcnFile />}
+          hint={hasFilter ? '当前筛选范围' : '门店全部合同'}
+        />
+        <StatCard
+          label="履行中"
+          value={stats.active}
+          tone="emerald"
+          icon={<IcnCheck />}
+          hint={stats.total > 0 ? `${Math.round((stats.active / Math.max(stats.total, 1)) * 100)}% 占比` : '尚无合同'}
+        />
+        <StatCard
+          label="30天内到期"
+          value={stats.expiring}
+          tone="amber"
+          icon={<IcnClock />}
+          hint={stats.expiring > 0 ? '需联系对方续签' : '近 30 天安全'}
+        />
+        <StatCard
+          label="已逾期"
+          value={stats.expired}
+          tone={stats.expired > 0 ? 'red' : 'slate'}
+          icon={<IcnAlert />}
+          hint={stats.expired > 0 ? '请尽快处理' : '当前无逾期'}
+        />
+      </div>
+
       <Card>
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            className={`${inputCls} w-[260px] shrink-0`}
-            placeholder="搜索名称 / 编号 / 对方公司 / 门店"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
+        <div className="flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200/60">
+          <div className="relative">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400">
+              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
+            </svg>
+            <input
+              className={`${inputCls} !pl-8 w-[220px] shrink-0`}
+              placeholder="搜索名称 / 编号 / 对方 / 门店"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+          </div>
+          <span className="h-6 w-px bg-slate-200" />
           <select className={`${inputClsInline} shrink-0`} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)}>
             {STATUS_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
           </select>
@@ -235,15 +273,18 @@ export default function Contracts() {
               <option key={o.name} value={o.name}>{o.name}</option>
             ))}
           </select>
-          <Button variant="ghost" onClick={() => setShowAdvanced((v) => !v)} className={`ml-auto ${showAdvanced ? 'text-indigo-600' : ''}`}>
-            {showAdvanced ? '收起筛选' : '高级筛选'}
-          </Button>
-          {hasFilter && (
-            <Button variant="ghost" onClick={resetFilters}>重置</Button>
-          )}
-          {can('contract.create') && (
-            <Button variant="primary" onClick={() => { setEditing(null); setFormOpen(true) }}>+ 新建合同</Button>
-          )}
+          <span className="h-6 w-px bg-slate-200" />
+          <div className="ml-auto flex items-center gap-1.5">
+            <Button variant="ghost" onClick={() => setShowAdvanced((v) => !v)} className={showAdvanced ? 'text-indigo-600' : ''}>
+              {showAdvanced ? '收起筛选' : '高级筛选'}
+            </Button>
+            {hasFilter && (
+              <Button variant="ghost" onClick={resetFilters}>重置</Button>
+            )}
+            {can('contract.create') && (
+              <Button variant="primary" onClick={() => { setEditing(null); setFormOpen(true) }}>+ 新建合同</Button>
+            )}
+          </div>
         </div>
 
         {showAdvanced && (
@@ -287,12 +328,12 @@ export default function Contracts() {
         }
       >
         {loading ? (
-          <Empty text="加载中…" />
+          <Empty text="加载中…" icon={<Spinner className="h-6 w-6 text-slate-300" />} />
         ) : filtered.length === 0 ? (
           <Empty text="暂无符合条件的合同" />
         ) : (
           <>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto rounded-xl ring-1 ring-slate-200/70">
             <table className="w-full text-sm table-fixed">
               <colgroup>
                 <col className="w-8" />
@@ -305,9 +346,9 @@ export default function Contracts() {
                 <col className="w-[88px]" />
                 <col className="w-[104px]" />
               </colgroup>
-              <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-400">
+              <thead className="bg-gradient-to-b from-slate-50 to-slate-50/70 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
-                  <th className="w-8 py-1.5">
+                  <th className="w-8 py-2.5">
                     <input
                       type="checkbox"
                       checked={allChecked}
@@ -316,21 +357,21 @@ export default function Contracts() {
                       }
                     />
                   </th>
-                  <th className="px-2 py-2 text-left font-medium">合同</th>
-                  <th className="px-2 py-2 text-left font-medium">门店</th>
-                  <th className="px-2 py-2 text-left font-medium">类别</th>
-                  <th className="px-2 py-2 text-left font-medium">对方</th>
-                  <th className="px-2 py-2 text-right font-medium">金额</th>
-                  <th className="px-2 py-2 text-left font-medium">到期</th>
-                  <th className="px-2 py-2 text-left font-medium">状态</th>
-                  <th className="px-2 py-2 text-right font-medium">操作</th>
+                  <th className="px-2 py-2.5 text-left font-medium">合同</th>
+                  <th className="px-2 py-2.5 text-left font-medium">门店</th>
+                  <th className="px-2 py-2.5 text-left font-medium">类别</th>
+                  <th className="px-2 py-2.5 text-left font-medium">对方</th>
+                  <th className="px-2 py-2.5 text-right font-medium">金额</th>
+                  <th className="px-2 py-2.5 text-left font-medium">到期</th>
+                  <th className="px-2 py-2.5 text-left font-medium">状态</th>
+                  <th className="px-2 py-2.5 text-right font-medium">操作</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100/80">
                 {filtered.map((c) => {
                   const lv = c.status === 'active' ? dueLevel(daysLeft(c.end_at)) : null
                   return (
-                    <tr key={c.id} className="hover:bg-slate-50">
+                    <tr key={c.id} className="transition hover:bg-indigo-50/40">
                       <td className="py-1.5">
                         <input
                           type="checkbox"
@@ -461,5 +502,41 @@ export default function Contracts() {
         </div>
       </Modal>
     </div>
+  )
+}
+
+/* ────── 统计卡图标（heroicons-style 16/16 描边） ────── */
+
+function IcnFile() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-7 w-7">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6" />
+      <path d="M8 13h8" /><path d="M8 17h5" />
+    </svg>
+  )
+}
+function IcnCheck() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-7 w-7">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+      <path d="m9 11 3 3L22 4" />
+    </svg>
+  )
+}
+function IcnClock() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-7 w-7">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 6v6l4 2" />
+    </svg>
+  )
+}
+function IcnAlert() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-7 w-7">
+      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+      <path d="M12 9v4" /><path d="M12 17h.01" />
+    </svg>
   )
 }

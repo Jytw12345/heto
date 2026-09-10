@@ -13,7 +13,7 @@ export function Card({
   className?: string
 }) {
   return (
-    <section className={`rounded-xl border border-slate-200 bg-white ${className}`}>
+    <section className={`rounded-2xl border border-slate-200/70 bg-white shadow-sm ${className}`}>
       {(title || extra) && (
         <header className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
           <h2 className="text-sm font-medium text-slate-800">{title}</h2>
@@ -118,13 +118,62 @@ export function Button({
   )
 }
 
-export function Empty({ text }: { text: string }) {
-  return <div className="py-14 text-center text-sm text-slate-400">{text}</div>
+export function Empty({ text, icon }: { text: string; icon?: ReactNode }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+      {icon ?? <DefaultEmptyArt />}
+      <p className="text-sm text-slate-400">{text}</p>
+    </div>
+  )
+}
+
+/** 空数据默认插画：文件夹/合同文档 + 一个放大镜未果的小圆 */
+function DefaultEmptyArt() {
+  return (
+    <svg viewBox="0 0 120 120" className="h-28 w-28 text-slate-300" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="22" y="32" width="76" height="60" rx="9" />
+      <path d="M22 50h76" />
+      <path d="M40 42h32" />
+      <path d="M36 64h30" />
+      <path d="M36 76h20" />
+      <circle cx="86" cy="86" r="15" />
+      <path d="M97 97l8 8" />
+    </svg>
+  )
+}
+
+const STATUS_ICON: Record<ContractStatus, ReactNode> = {
+  draft: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3">
+      <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  ),
+  active: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><path d="m9 11 3 3L22 4" />
+    </svg>
+  ),
+  renewed: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3">
+      <path d="M21 12a9 9 0 0 1-15 6.7L3 16" /><path d="M3 12a9 9 0 0 1 15-6.7L21 8" /><path d="M21 3v5h-5" /><path d="M3 21v-5h5" />
+    </svg>
+  ),
+  expired: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3">
+      <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
+    </svg>
+  ),
+  cancelled: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3">
+      <circle cx="12" cy="12" r="9" /><path d="m15 9-6 6" /><path d="m9 9 6 6" />
+    </svg>
+  ),
 }
 
 export function StatusBadge({ status }: { status: ContractStatus }) {
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_TONE[status]}`}>
+    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_TONE[status]}`}>
+      {STATUS_ICON[status]}
       {STATUS_LABEL[status]}
     </span>
   )
@@ -135,6 +184,57 @@ export function Pill({ className = '', children }: { className?: string; childre
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${className}`}>
       {children}
     </span>
+  )
+}
+
+/**
+ * 顶部统计卡。强调"漂浮感"：大圆角、阴影、淡渐变 + 右上角图标徽章。
+ * tone: indigo(总数) / emerald(履行中) / amber(30天内到期) / red(已逾期)
+ */
+export function StatCard({
+  label,
+  value,
+  hint,
+  icon,
+  tone = 'indigo',
+  trend,
+}: {
+  label: string
+  value: number | string
+  hint?: ReactNode
+  icon: ReactNode
+  tone?: 'indigo' | 'emerald' | 'amber' | 'red' | 'slate'
+  /** 趋势文本（如 "+2 本月" 或 "30% 占比"），右侧以 chip 形式展示 */
+  trend?: string
+}) {
+  const palette: Record<string, { bg: string; ring: string; text: string; icon: string }> = {
+    indigo:  { bg: 'from-indigo-50/60 to-white',  ring: 'ring-indigo-100',  text: 'text-indigo-700',  icon: 'bg-indigo-100 text-indigo-600' },
+    emerald: { bg: 'from-emerald-50/70 to-white', ring: 'ring-emerald-100', text: 'text-emerald-700', icon: 'bg-emerald-100 text-emerald-600' },
+    amber:   { bg: 'from-amber-50/70 to-white',   ring: 'ring-amber-100',   text: 'text-amber-700',   icon: 'bg-amber-100 text-amber-600' },
+    red:     { bg: 'from-red-50/70 to-white',     ring: 'ring-red-100',     text: 'text-red-700',     icon: 'bg-red-100 text-red-600' },
+    slate:   { bg: 'from-slate-50/70 to-white',   ring: 'ring-slate-100',   text: 'text-slate-700',   icon: 'bg-slate-100 text-slate-600' },
+  }
+  const p = palette[tone]
+  return (
+    <div className={`group relative overflow-hidden rounded-2xl border border-slate-200/70 bg-gradient-to-br ${p.bg} p-4 shadow-sm transition hover:shadow-md`}>
+      <div className={`absolute -right-4 -top-4 grid h-16 w-16 place-items-center rounded-full ${p.icon} opacity-90 transition group-hover:scale-110`}>
+        {icon}
+      </div>
+      <div className="relative">
+        <div className="text-xs font-medium text-slate-500">{label}</div>
+        <div className={`mt-1.5 text-3xl font-semibold tabular-nums ${p.text}`}>
+          {value}
+        </div>
+        <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500">
+          {hint}
+          {trend && (
+            <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ring-1 ${p.ring} ${p.text}`}>
+              {trend}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
 
