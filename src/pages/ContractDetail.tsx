@@ -19,6 +19,7 @@ export default function ContractDetail() {
   const { push } = useToast()
 
   const [c, setC] = useState<Contract | null>(null)
+  const [creatorLabel, setCreatorLabel] = useState<string>('—')
   const [files, setFiles] = useState<ContractFile[]>([])
   const [history, setHistory] = useState<{ from_status: string | null; to_status: string; changed_at: string; actor_email: string | null; reason: string | null }[]>([])
   const [editOpen, setEditOpen] = useState(false)
@@ -40,7 +41,24 @@ export default function ContractDetail() {
       supabase.from('v_contracts').select('*').eq('id', id!).maybeSingle(),
       supabase.from('contract_status_history').select('from_status, to_status, changed_at, reason').eq('contract_id', id!).order('changed_at', { ascending: false }).limit(50),
     ])
-    setC((data as Contract) ?? null)
+    const contract = (data as Contract) ?? null
+    setC(contract)
+
+    // 补 creator 显示名（profiles.full_name > email 用户名 > UUID 前8位 兜底）
+    if (contract?.created_by) {
+      const { data: creator } = await supabase
+        .from('profiles')
+        .select('full_name, email')
+        .eq('id', contract.created_by)
+        .maybeSingle()
+      const name = creator?.full_name?.trim()
+        || (creator?.email ? creator.email.split('@')[0] : '')
+        || contract.created_by.slice(0, 8)
+      setCreatorLabel(name)
+    } else {
+      setCreatorLabel('—')
+    }
+
     // 补 actor email
     if (h && h.length) {
       const uids = Array.from(new Set((h as any[]).map(x => x.actor_id).filter(Boolean)))
@@ -148,40 +166,60 @@ export default function ContractDetail() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <button
-            onClick={() => navigate(-1)}
-            className="mb-1 text-xs text-slate-500 hover:text-slate-800"
-          >
-            ← 返回
-          </button>
-          <h1 className="truncate text-lg font-medium text-slate-900">{c.title}</h1>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-            {isHq && <span>{c.store_name}</span>}
-            <StatusBadge status={c.status} />
-            {c.status === 'active' && (
-              <Pill className={lv.className}>{lv.label}</Pill>
-            )}
-            {c.tags?.map((t) => (
-              <span key={t} className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
-                #{t}
-              </span>
-            ))}
+      {/* B2 面包屑 */}
+      <nav className="flex items-center gap-1 text-xs text-slate-500 print:hidden">
+        <Link to="/contracts" className="hover:text-slate-800 hover:underline">合同管理</Link>
+        {isHq && c.store_name && (
+          <>
+            <span className="text-slate-300">/</span>
+            <span className="truncate">{c.store_name}</span>
+          </>
+        )}
+        <span className="text-slate-300">/</span>
+        <span className="truncate text-slate-700">{c.title}</span>
+      </nav>
+
+      {/* 顶部 Hero 概览卡：标题 + 元数据条 + 金额 hero + 操作 */}
+      <div className="rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm print:border-slate-300 print:shadow-none">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-xl font-semibold text-slate-900">{c.title}</h1>
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+              {isHq && <span>📍 {c.store_name}</span>}
+              <StatusBadge status={c.status} />
+              {c.status === 'active' && <Pill className={lv.className}>{lv.label}</Pill>}
+              {c.tags?.map((t) => (
+                <span key={t} className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
+                  #{t}
+                </span>
+              ))}
+            </div>
           </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {can('contract.renew') && c.status !== 'cancelled' && (
-            <Button onClick={() => setRenewOpen(true)}>🔁 一键续签</Button>
-          )}
-          {can('contract.edit') && (
-            <Button variant="primary" onClick={() => setEditOpen(true)}>编辑</Button>
-          )}
+          {/* 金额 hero + 操作按钮：手机纵向堆叠、左对齐、按钮全宽 */}
+          <div className="flex flex-col gap-3 lg:items-end">
+            {showAmount && c.amount != null && (
+              <div className="text-left leading-none lg:text-right">
+                <div className="text-[11px] uppercase tracking-wide text-slate-400">合同金额</div>
+                <div className="mt-1 text-3xl font-semibold text-indigo-600 tabular-nums">
+                  {formatMoney(c.amount)}
+                </div>
+              </div>
+            )}
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end print:hidden">
+              <Button onClick={() => window.print()} className="hidden sm:inline-flex">🖨 打印</Button>
+              {can('contract.renew') && c.status !== 'cancelled' && (
+                <Button className="w-full sm:w-auto" onClick={() => setRenewOpen(true)}>🔁 一键续签</Button>
+              )}
+              {can('contract.edit') && (
+                <Button variant="primary" className="w-full sm:w-auto" onClick={() => setEditOpen(true)}>编辑</Button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
       {c.renewed_from && (
-        <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700 print:border-slate-300 print:bg-transparent print:text-slate-700">
           本合同由原合同续签而来{' '}
           <Link to={`/contracts/${c.renewed_from}`} className="font-medium underline">
             查看原合同
@@ -189,58 +227,107 @@ export default function ContractDetail() {
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card title="合同信息" className="lg:col-span-1">
-          <dl className="space-y-2 text-sm">
-            <Row k="合同编号" v={c.contract_no || '—'} />
-            <Row k="类别" v={c.category || '—'} />
-            <Row k="对方公司" v={c.counterparty || '—'} />
-            <Row k="我方主体" v={c.our_entity || '—'} />
-            <Row k="合同金额" v={showAmount ? formatMoney(c.amount) : '🔒 无权限'} />
-            <Row k="签订日期" v={formatDate(c.signed_at)} />
-            <Row k="生效日期" v={formatDate(c.start_at)} />
-            <Row k="到期日期" v={formatDate(c.end_at)} />
-            <Row k="自动续约" v={c.auto_renew ? '是' : '否'} />
-            <Row k="提前提醒" v={c.remind_days?.length ? c.remind_days.map((n) => `${n}天`).join(' / ') : '未设置'} />
-            <Row k="创建人" v={c.created_by?.slice(0, 8) ?? '—'} />
-          </dl>
-          {c.note && (
-            <div className="mt-4 rounded-lg bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
+      {/* 基本信息卡 - 4列×3行 网格（合同金额已在 hero 顶部，不重复） */}
+      <Card title="基本信息" className="print:break-inside-avoid">
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm sm:grid-cols-4">
+          <Field k="合同编号">{c.contract_no || '—'}</Field>
+          <Field k="类别">{c.category || '—'}</Field>
+          <Field k="对方公司">{c.counterparty || '—'}</Field>
+          <Field k="我方主体">{c.our_entity || '—'}</Field>
+          <Field k="签订日期">{formatDate(c.signed_at)}</Field>
+          <Field k="生效日期">{formatDate(c.start_at)}</Field>
+          <Field k="到期日期">{formatDate(c.end_at)}</Field>
+          <Field k="自动续约">{c.auto_renew ? '是' : '否'}</Field>
+          <Field k="提前提醒" wide>
+            {c.remind_days?.length ? (
+              <div className="flex flex-wrap gap-1.5">
+                {c.remind_days.map((n) => (
+                  <span
+                    key={n}
+                    className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-amber-200"
+                  >
+                    {n}天前
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <span className="text-slate-400">未设置</span>
+            )}
+          </Field>
+          <Field k="创建人">
+            <span className="font-medium text-slate-800">{creatorLabel}</span>
+          </Field>
+        </dl>
+        {c.note && (
+          <div className="mt-5 border-t border-slate-100 pt-3 print:border-slate-200">
+            <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">备注</div>
+            <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700">
               {c.note}
-            </div>
+            </p>
+          </div>
+        )}
+      </Card>
+
+      {/* 底部双栏 50:50：状态历史 + 扫描件 */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card title="状态历史" className="print:break-inside-avoid">
+          {history.length === 0 ? (
+            <Empty text="暂无状态变更记录" />
+          ) : (
+            <ol className="relative space-y-3 pl-5 before:absolute before:bottom-1 before:left-1.5 before:top-1 before:w-px before:bg-slate-200">
+              {history.map((h, i) => (
+                <li key={i} className="relative">
+                  <span className="absolute -left-5 top-1.5 h-2.5 w-2.5 rounded-full bg-white ring-2 ring-indigo-400" />
+                  <div className="font-mono text-[11px] text-slate-400">
+                    {formatDate(h.changed_at, true)}
+                  </div>
+                  <div className="mt-0.5 text-sm text-slate-800">
+                    {h.from_status
+                      ? `${STATUS_LABEL[h.from_status as keyof typeof STATUS_LABEL] ?? h.from_status} → `
+                      : ''}
+                    <span className="font-medium">
+                      {STATUS_LABEL[h.to_status as keyof typeof STATUS_LABEL] ?? h.to_status}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 text-xs text-slate-500">
+                    操作人：{h.actor_email || 'system'}
+                    {h.reason && <span className="ml-1">· 备注：{h.reason}</span>}
+                  </div>
+                </li>
+              ))}
+            </ol>
           )}
         </Card>
 
         <Card
           title="扫描件与附件"
           extra={
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 print:hidden">
               <span className="text-xs text-slate-400">
                 {files.length} 个 · {formatBytes(totalSize)}
               </span>
               {files.length > 0 && (
-                <button
-                  onClick={downloadAll}
-                  className="text-xs text-slate-600 hover:underline"
-                >
+                <button onClick={downloadAll} className="text-xs text-slate-600 hover:underline">
                   一键下载全部
                 </button>
               )}
             </div>
           }
-          className="lg:col-span-2"
+          className="print:break-inside-avoid"
         >
-          <FileUploader storeId={c.store_id} contractId={c.id} onUploaded={loadFiles} />
+          <div className="print:hidden">
+            <FileUploader storeId={c.store_id} contractId={c.id} onUploaded={loadFiles} />
+          </div>
 
           <div className="mt-3">
             {files.length === 0 ? (
               <Empty text="还没有上传扫描件" />
             ) : (
-              <div className="grid gap-2.5 sm:grid-cols-2">
+              <ul className="space-y-2">
                 {files.map((f) => (
-                  <div
+                  <li
                     key={f.id}
-                    className="flex items-center gap-3 rounded-lg border border-slate-200 p-2.5 transition hover:border-indigo-300 hover:bg-indigo-50/40"
+                    className="flex items-center gap-3 rounded-lg border border-slate-200 p-2.5 transition hover:border-indigo-300 hover:bg-indigo-50/40 print:hover:bg-transparent"
                   >
                     <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md bg-slate-100">
                       <FileGlyph mime={f.mime_type} />
@@ -251,7 +338,7 @@ export default function ContractDetail() {
                         {formatBytes(f.size_bytes)} · {formatDate(f.created_at)}
                       </div>
                     </div>
-                    <div className="flex shrink-0 gap-1">
+                    <div className="flex shrink-0 gap-1 print:hidden">
                       <Button variant="ghost" onClick={() => openPreview(f)} disabled={busyId === f.id}>
                         预览
                       </Button>
@@ -264,33 +351,13 @@ export default function ContractDetail() {
                         </Button>
                       )}
                     </div>
-                  </div>
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
           </div>
         </Card>
       </div>
-
-      {history.length > 0 && (
-        <Card title="状态历史">
-          <ul className="space-y-1.5 text-xs">
-            {history.map((h, i) => (
-              <li key={i} className="flex items-start gap-3">
-                <span className="font-mono text-slate-400">{formatDate(h.changed_at, true)}</span>
-                <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700">
-                  {h.from_status ? `${STATUS_LABEL[h.from_status as keyof typeof STATUS_LABEL] ?? h.from_status} → ` : ''}
-                  {STATUS_LABEL[h.to_status as keyof typeof STATUS_LABEL] ?? h.to_status}
-                </span>
-                <span className="text-slate-500">
-                  操作人：{h.actor_email || 'system'}
-                  {h.reason && ` · 备注：${h.reason}`}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
 
       <ContractForm
         open={editOpen}
@@ -339,11 +406,11 @@ export default function ContractDetail() {
   )
 }
 
-function Row({ k, v }: { k: string; v: string }) {
+function Field({ k, children, wide }: { k: string; children: React.ReactNode; wide?: boolean }) {
   return (
-    <div className="flex justify-between gap-4">
-      <dt className="shrink-0 text-slate-500">{k}</dt>
-      <dd className="truncate text-right text-slate-800">{v}</dd>
+    <div className={wide ? 'col-span-2' : undefined}>
+      <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{k}</dt>
+      <dd className="mt-1 break-words text-sm text-slate-800">{children}</dd>
     </div>
   )
 }

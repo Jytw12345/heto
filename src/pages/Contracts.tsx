@@ -244,7 +244,7 @@ export default function Contracts() {
               <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
             </svg>
             <input
-              className={`${inputCls} !pl-8 w-[220px] shrink-0`}
+              className={`${inputCls} !pl-8 w-full sm:w-[220px] sm:shrink-0`}
               placeholder="搜索名称 / 编号 / 对方 / 门店"
               value={q}
               onChange={(e) => setQ(e.target.value)}
@@ -418,14 +418,14 @@ export default function Contracts() {
                         <div className="flex justify-end gap-1">
                           <button
                             onClick={() => { setEditing(c); setFormOpen(true) }}
-                            className="rounded px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
+                            className="rounded px-2.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100"
                           >
                             编辑
                           </button>
                           {can('contract.delete') && (
                             <button
                               onClick={() => setConfirmDelete(c)}
-                              className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                              className="rounded px-2.5 py-1.5 text-xs text-red-600 hover:bg-red-50"
                             >
                               删除
                             </button>
@@ -493,7 +493,7 @@ export default function Contracts() {
 
       <Modal open={batchOpen} title="批量改状态" onClose={() => setBatchOpen(false)}>
         <p className="mb-3 text-sm text-slate-600">将所选 {selected.size} 条合同的状态改为：</p>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           {(['draft', 'active', 'renewed', 'expired', 'cancelled'] as ContractStatus[]).map((s) => (
             <Button key={s} onClick={() => bulkSetStatus(s)}>
               {STATUS_LABEL[s]}

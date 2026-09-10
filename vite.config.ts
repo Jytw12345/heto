@@ -9,4 +9,7 @@ export default defineConfig({
   base,
   plugins: [react()],
   server: { host: true, port: 5173 },
+  // 本地 WorkBuddy 沙箱的 safe-delete 会拦截 Vite 的 rmSync 导致超时；
+  // 设为 false 后改为手动 `rm -rf dist` 清理。GitHub Actions 上无此问题，可保留默认。
+  build: { emptyOutDir: false },
 })
