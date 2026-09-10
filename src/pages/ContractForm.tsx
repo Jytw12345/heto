@@ -284,7 +284,7 @@ export default function ContractForm({ open, contract, stores, onClose, onSaved,
       onClose={onClose}
       wide
     >
-      <form onSubmit={submit} className="space-y-4">
+      <form onSubmit={submit} className="space-y-3">
         {templates.length > 0 && !contract && !renewFrom && (
           <Field label="套用模板">
             <div className="flex flex-wrap gap-2">
@@ -302,15 +302,17 @@ export default function ContractForm({ open, contract, stores, onClose, onSaved,
           </Field>
         )}
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="合同名称 *">
-            <input
-              className={inputCls}
-              value={form.title}
-              onChange={(e) => set('title', e.target.value)}
-              placeholder="如：万达广场商铺租赁合同"
-            />
-          </Field>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-3 lg:grid-cols-3">
+          <div className="col-span-2 lg:col-span-3">
+            <Field label="合同名称 *">
+              <input
+                className={inputCls}
+                value={form.title}
+                onChange={(e) => set('title', e.target.value)}
+                placeholder="如：万达广场商铺租赁合同"
+              />
+            </Field>
+          </div>
           <Field label="合同编号">
             <input
               className={inputCls}
@@ -399,42 +401,44 @@ export default function ContractForm({ open, contract, stores, onClose, onSaved,
                 onChange={(v) => set('start_at', v)}
             />
           </Field>
-          <Field label="到期日期" hint="到期提醒以这个日期为准">
-            <div className="space-y-1.5">
-              <DateField value={form.end_at} onChange={(v) => set('end_at', v)} />
-              <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                <span className="text-slate-400">快捷：</span>
-                <button
-                  type="button"
-                  onClick={() => set('end_at', todayISO())}
-                  className="rounded border border-slate-200 px-2 py-0.5 text-slate-600 hover:bg-slate-50"
-                >
-                  今天
-                </button>
-                <button
-                  type="button"
-                  onClick={() => set('end_at', addYears(form.start_at || todayISO(), 1))}
-                  className="rounded border border-slate-200 px-2 py-0.5 text-slate-600 hover:bg-slate-50"
-                >
-                  生效+1年
-                </button>
-                <button
-                  type="button"
-                  onClick={() => set('end_at', addYears(form.start_at || todayISO(), 2))}
-                  className="rounded border border-slate-200 px-2 py-0.5 text-slate-600 hover:bg-slate-50"
-                >
-                  +2年
-                </button>
-                <button
-                  type="button"
-                  onClick={() => set('end_at', addYears(form.start_at || todayISO(), 3))}
-                  className="rounded border border-slate-200 px-2 py-0.5 text-slate-600 hover:bg-slate-50"
-                >
-                  +3年
-                </button>
+          <div className="col-span-2 lg:col-span-2">
+            <Field label="到期日期" hint="到期提醒以这个日期为准">
+              <div className="space-y-1.5">
+                <DateField value={form.end_at} onChange={(v) => set('end_at', v)} />
+                <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                  <span className="text-slate-400">快捷：</span>
+                  <button
+                    type="button"
+                    onClick={() => set('end_at', todayISO())}
+                    className="rounded border border-slate-200 px-2 py-0.5 text-slate-600 hover:bg-slate-50"
+                  >
+                    今天
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => set('end_at', addYears(form.start_at || todayISO(), 1))}
+                    className="rounded border border-slate-200 px-2 py-0.5 text-slate-600 hover:bg-slate-50"
+                  >
+                    生效+1年
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => set('end_at', addYears(form.start_at || todayISO(), 2))}
+                    className="rounded border border-slate-200 px-2 py-0.5 text-slate-600 hover:bg-slate-50"
+                  >
+                    +2年
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => set('end_at', addYears(form.start_at || todayISO(), 3))}
+                    className="rounded border border-slate-200 px-2 py-0.5 text-slate-600 hover:bg-slate-50"
+                  >
+                    +3年
+                  </button>
+                </div>
               </div>
-            </div>
-          </Field>
+            </Field>
+          </div>
           <Field label="自动续约">
             <select
               className={inputCls}
