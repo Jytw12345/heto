@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { Button, Card, Empty, Field, Modal, inputCls, inputClsInline } from '../components/ui'
 import { useToast } from '../components/Toast'
 import type { Permissions, Profile, Role, Store } from '../types'
-import { ALL_PERMS, ROLE_PRESET, resolvePerms } from '../lib/permissions'
+import { ALL_PERMS, ROLE_PRESET } from '../lib/permissions'
 
 interface AccountRow {
   id: string
@@ -258,7 +258,6 @@ function PermissionModal({
   onClose: () => void
   onSaved: (payload: { permissions: Permissions }) => void
 }) {
-  const base = resolvePerms(account.profile)
   const [over, setOver] = useState<Permissions>(account.profile?.permissions ?? {})
 
   // 按 group 分组
@@ -281,35 +280,41 @@ function PermissionModal({
     <Modal open={true} title={`权限矩阵 · ${account.email}`} onClose={onClose} wide>
       <div className="mb-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
         <strong className="text-slate-800">三态：</strong>
-        <span className="ml-2">✓ 允许（默认）</span>
+        <span className="ml-2">— 走默认</span>
         <span className="ml-2">·</span>
         <span className="ml-2">⚠️ 显式允许（覆盖默认）</span>
         <span className="ml-2">·</span>
         <span className="ml-2">✗ 显式收回</span>
-        <span className="ml-2">·</span>
-        <span className="ml-2">— 走默认</span>
       </div>
 
-      <div className="space-y-5">
+      <div className="space-y-4">
         {Object.entries(groups).map(([g, items]) => (
           <div key={g}>
-            <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-slate-400">
+            <div className="mb-1 px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
               {g}
             </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {items.map((p) => {
+            <ul className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+              {items.map((p, idx) => {
                 const override = over[p.key]
-                const cur = override === undefined ? base[p.key] : !!override
                 return (
-                  <div
+                  <li
                     key={p.key}
-                    className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2"
+                    className={`flex items-center gap-3 px-3 py-1.5 ${
+                      idx > 0 ? 'border-t border-slate-100' : ''
+                    } hover:bg-slate-50/60`}
                   >
-                    <span className="text-sm text-slate-800">{p.label}</span>
-                    <div className="flex gap-1">
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm text-slate-800" title={p.label}>
+                        {p.label}
+                      </div>
+                      <div className="truncate font-mono text-[10px] text-slate-400" title={p.key}>
+                        {p.key}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 gap-1">
                       <BitBtn
-                        active={override === undefined && cur}
-                        title="默认（走 role）"
+                        active={override === undefined}
+                        title="走默认（清除覆盖）"
                         onClick={() => setBit(p.key, null)}
                       >
                         —
@@ -331,10 +336,10 @@ function PermissionModal({
                         ✗
                       </BitBtn>
                     </div>
-                  </div>
+                  </li>
                 )
               })}
-            </div>
+            </ul>
           </div>
         ))}
       </div>
