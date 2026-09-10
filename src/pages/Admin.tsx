@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { Button, Card, Empty, Field, Modal, inputCls } from '../components/ui'
+import { Button, Card, Empty, Field, Modal, inputCls, inputClsInline } from '../components/ui'
 import { useToast } from '../components/Toast'
 import type { Permissions, Profile, Role, Store } from '../types'
 import { ALL_PERMS, ROLE_PRESET, resolvePerms } from '../lib/permissions'
@@ -73,15 +73,13 @@ export default function Admin() {
         ) : (
           <ul className="divide-y divide-slate-100">
             {stores.map((s) => (
-              <li key={s.id} className="flex items-center gap-3 py-2.5">
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm text-slate-800">
-                    {s.name}
-                    {!s.active && <span className="ml-2 text-xs text-slate-400">已停用</span>}
-                  </div>
-                  <div className="text-xs text-slate-400">
-                    {[s.code, s.manager, s.phone].filter(Boolean).join(' · ') || '—'}
-                  </div>
+              <li key={s.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1.5">
+                <div className="min-w-0 flex-1 truncate text-sm text-slate-800">
+                  {s.name}
+                  <span className="text-xs text-slate-400">
+                    {[s.code && `编码 ${s.code}`, s.manager && `店长 ${s.manager}`, s.phone].filter(Boolean).join(' · ')}
+                  </span>
+                  {!s.active && <span className="ml-2 text-xs text-slate-400">已停用</span>}
                 </div>
                 <Button variant="ghost" onClick={() => setStoreModal(s)}>
                   编辑
@@ -100,17 +98,19 @@ export default function Admin() {
         ) : (
           <ul className="divide-y divide-slate-100">
             {accounts.map((a) => (
-              <li key={a.id} className="flex flex-wrap items-center gap-2 py-2.5">
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm text-slate-800">{a.email}</div>
-                  <div className="text-xs text-slate-400">
-                    {a.profile?.full_name || '未设置姓名'}
-                    {a.profile && !a.profile.active && ' · 已停用'}
-                  </div>
+              <li key={a.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-1.5">
+                <div className="min-w-0 flex-1 truncate text-sm">
+                  <span className="text-slate-800">{a.email}</span>
+                  {a.profile?.full_name && (
+                    <span className="ml-2 text-xs text-slate-400">{a.profile.full_name}</span>
+                  )}
+                  {a.profile && !a.profile.active && (
+                    <span className="ml-2 text-xs text-slate-400">已停用</span>
+                  )}
                 </div>
 
                 <select
-                  className={`${inputCls} w-auto py-1 text-xs`}
+                  className={`${inputClsInline} py-1 text-xs`}
                   value={a.profile?.role ?? 'store'}
                   onChange={(e) => patchAccount(a.id, { role: e.target.value as Role })}
                 >
@@ -119,7 +119,7 @@ export default function Admin() {
                 </select>
 
                 <select
-                  className={`${inputCls} w-auto py-1 text-xs`}
+                  className={`${inputClsInline} py-1 text-xs`}
                   value={a.profile?.store_id ?? ''}
                   onChange={(e) => patchAccount(a.id, { store_id: e.target.value || null })}
                 >

@@ -191,7 +191,7 @@ export default function ContractDetail() {
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card title="合同信息" className="lg:col-span-1">
-          <dl className="space-y-3 text-sm">
+          <dl className="space-y-2 text-sm">
             <Row k="合同编号" v={c.contract_no || '—'} />
             <Row k="类别" v={c.category || '—'} />
             <Row k="对方公司" v={c.counterparty || '—'} />
@@ -232,15 +232,15 @@ export default function ContractDetail() {
         >
           <FileUploader storeId={c.store_id} contractId={c.id} onUploaded={loadFiles} />
 
-          <div className="mt-4">
+          <div className="mt-3">
             {files.length === 0 ? (
               <Empty text="还没有上传扫描件" />
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-2.5 sm:grid-cols-2">
                 {files.map((f) => (
                   <div
                     key={f.id}
-                    className="flex items-center gap-3 rounded-lg border border-slate-200 p-3 transition hover:border-indigo-300 hover:bg-indigo-50/40"
+                    className="flex items-center gap-3 rounded-lg border border-slate-200 p-2.5 transition hover:border-indigo-300 hover:bg-indigo-50/40"
                   >
                     <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md bg-slate-100">
                       <FileGlyph mime={f.mime_type} />
@@ -274,7 +274,7 @@ export default function ContractDetail() {
 
       {history.length > 0 && (
         <Card title="状态历史">
-          <ul className="space-y-2 text-xs">
+          <ul className="space-y-1.5 text-xs">
             {history.map((h, i) => (
               <li key={i} className="flex items-start gap-3">
                 <span className="font-mono text-slate-400">{formatDate(h.changed_at, true)}</span>

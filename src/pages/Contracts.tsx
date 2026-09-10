@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import * as XLSX from 'xlsx'
-import { Button, Card, Empty, Field, Modal, Pill, StatusBadge, inputCls } from '../components/ui'
+import { Button, Card, Empty, Field, Modal, Pill, StatusBadge, inputCls, inputClsInline } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { useAuth } from '../hooks/useAuth'
 import ContractForm from './ContractForm'
@@ -71,7 +71,8 @@ export default function Contracts() {
           !(
             r.title.toLowerCase().includes(s) ||
             (r.contract_no ?? '').toLowerCase().includes(s) ||
-            (r.counterparty ?? '').toLowerCase().includes(s)
+            (r.counterparty ?? '').toLowerCase().includes(s) ||
+            (r.store_name ?? '').toLowerCase().includes(s)
           )
         )
           return false
@@ -87,6 +88,45 @@ export default function Contracts() {
       return true
     })
   }, [rows, q, storeFilter, statusFilter, categoryFilter, tagFilter, amountMin, amountMax, endBefore, endAfter])
+
+  // 表格底部统计条
+  const stats = useMemo(() => {
+    let active = 0, expiring = 0, expired = 0
+    for (const r of filtered) {
+      if (r.status === 'active') {
+        active++
+        const dl = daysLeft(r.end_at)
+        if (dl !== null) {
+          if (dl < 0) expired++
+          else if (dl <= 30) expiring++
+        }
+      } else if (r.status === 'expired') {
+        expired++
+      }
+    }
+    return { active, expiring, expired }
+  }, [filtered])
+
+  const hasFilter =
+    !!q ||
+    statusFilter !== 'all' ||
+    storeFilter !== 'all' ||
+    categoryFilter !== 'all' ||
+    tagFilter !== 'all' ||
+    !!amountMin || !!amountMax || !!endBefore || !!endAfter
+
+  function resetFilters() {
+    setQ('')
+    setStoreFilter('all')
+    setStatusFilter('all')
+    setCategoryFilter('all')
+    setTagFilter('all')
+    setAmountMin('')
+    setAmountMax('')
+    setEndBefore('')
+    setEndAfter('')
+    setShowAdvanced(false)
+  }
 
   function exportExcel() {
     const ws = XLSX.utils.json_to_sheet(
@@ -161,25 +201,28 @@ export default function Contracts() {
       <Card>
         <div className="flex flex-wrap items-center gap-2">
           <input
-            className={`${inputCls} min-w-[200px] flex-1`}
-            placeholder="搜索名称 / 编号 / 对方公司"
+            className={`${inputCls} min-w-[160px] flex-1`}
+            placeholder="搜索名称 / 编号 / 对方公司 / 门店"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
-          <select className={inputCls} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)}>
+          <select className={`${inputClsInline} shrink-0`} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)}>
             {STATUS_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
           </select>
           {isHq && (
-            <select className={inputCls} value={storeFilter} onChange={(e) => setStoreFilter(e.target.value)}>
+            <select className={`${inputClsInline} shrink-0`} value={storeFilter} onChange={(e) => setStoreFilter(e.target.value)}>
               <option value="all">全部门店</option>
               {stores.map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
           )}
-          <Button variant="ghost" onClick={() => setShowAdvanced((v) => !v)} className={showAdvanced ? 'text-indigo-600' : ''}>
+          <Button variant="ghost" onClick={() => setShowAdvanced((v) => !v)} className={`ml-auto ${showAdvanced ? 'text-indigo-600' : ''}`}>
             {showAdvanced ? '收起筛选' : '高级筛选'}
           </Button>
+          {hasFilter && (
+            <Button variant="ghost" onClick={resetFilters}>重置</Button>
+          )}
           {can('contract.create') && (
             <Button variant="primary" onClick={() => { setEditing(null); setFormOpen(true) }}>+ 新建合同</Button>
           )}
@@ -230,11 +273,23 @@ export default function Contracts() {
         ) : filtered.length === 0 ? (
           <Empty text="暂无符合条件的合同" />
         ) : (
+          <>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm table-fixed">
+              <colgroup>
+                <col className="w-8" />
+                <col />
+                <col className="w-[88px]" />
+                <col className="w-[72px]" />
+                <col className="w-[140px]" />
+                <col className="w-[100px]" />
+                <col className="w-[148px]" />
+                <col className="w-[88px]" />
+                <col className="w-[104px]" />
+              </colgroup>
               <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-400">
                 <tr>
-                  <th className="w-8 py-2">
+                  <th className="w-8 py-1.5">
                     <input
                       type="checkbox"
                       checked={allChecked}
@@ -258,7 +313,7 @@ export default function Contracts() {
                   const lv = c.status === 'active' ? dueLevel(daysLeft(c.end_at)) : null
                   return (
                     <tr key={c.id} className="hover:bg-slate-50">
-                      <td className="py-2">
+                      <td className="py-1.5">
                         <input
                           type="checkbox"
                           checked={selected.has(c.id)}
@@ -270,26 +325,34 @@ export default function Contracts() {
                           }}
                         />
                       </td>
-                      <td className="px-2 py-2">
-                        <Link to={`/contracts/${c.id}`} className="font-medium text-slate-800 hover:underline">
+                      <td className="px-2 py-1.5">
+                        <Link
+                          to={`/contracts/${c.id}`}
+                          className="block truncate font-medium text-slate-800 hover:underline"
+                          title={c.title}
+                        >
                           {c.title}
                         </Link>
-                        <div className="text-[11px] text-slate-400">
+                        <div className="truncate text-[11px] text-slate-400">
                           {c.contract_no ?? ''}
                           {c.tags?.length ? ' · ' + c.tags.join(' · ') : ''}
                         </div>
                       </td>
-                      <td className="px-2 py-2 text-slate-600">{c.store_name}</td>
-                      <td className="px-2 py-2 text-slate-600">{c.category ?? '—'}</td>
-                      <td className="px-2 py-2 text-slate-600">{c.counterparty ?? '—'}</td>
+                      <td className="truncate px-2 py-2 text-slate-600" title={c.store_name ?? ''}>
+                        {c.store_name}
+                      </td>
+                      <td className="truncate px-2 py-2 text-slate-600">{c.category ?? '—'}</td>
+                      <td className="truncate px-2 py-2 text-slate-600" title={c.counterparty ?? ''}>
+                        {c.counterparty ?? '—'}
+                      </td>
                       <td className="px-2 py-2 text-right tabular-nums">
                         {can('amount.view') ? formatMoney(c.amount) : <span className="text-slate-300">—</span>}
                       </td>
-                      <td className="px-2 py-2">
+                      <td className="px-2 py-1.5">
                         <div className="text-slate-700">{formatDate(c.end_at)}</div>
                         {lv && <Pill className={lv.className}>{lv.label}</Pill>}
                       </td>
-                      <td className="px-2 py-2">
+                      <td className="px-2 py-1.5">
                         <StatusBadge status={c.status} />
                       </td>
                       <td className="px-2 py-2 text-right">
@@ -316,6 +379,24 @@ export default function Contracts() {
               </tbody>
             </table>
           </div>
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-100 pt-3 text-xs text-slate-500">
+            <span>共 <b className="tabular-nums text-slate-700">{filtered.length}</b> 条</span>
+            <span className="text-slate-300">·</span>
+            <span>履行中 <b className="tabular-nums text-slate-700">{stats.active}</b></span>
+            {stats.expiring > 0 && (
+              <>
+                <span className="text-slate-300">·</span>
+                <span className="text-amber-700">30天内到期 <b className="tabular-nums">{stats.expiring}</b></span>
+              </>
+            )}
+            {stats.expired > 0 && (
+              <>
+                <span className="text-slate-300">·</span>
+                <span className="text-red-600">已逾期 <b className="tabular-nums">{stats.expired}</b></span>
+              </>
+            )}
+          </div>
+          </>
         )}
       </Card>
 
