@@ -157,6 +157,16 @@ export default function ContractForm({ open, contract, stores, onClose, onSaved,
     if (!form.title.trim()) return push('合同名称不能为空', 'err')
     if (!form.store_id) return push('请选择所属门店', 'err')
 
+    // 日期兜底：<input type="date"> 在某些浏览器/输入法下会拿到 'YYYY/MM/DD'
+    // Postgres date 类型只认 'YYYY-MM-DD'，必须统一为 ISO 格式
+    const normDate = (s: string) => {
+      const t = (s || '').trim()
+      if (!t) return null
+      const m = t.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/)
+      if (!m) return t // 兜不住就让 Supabase 报错更精准
+      return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`
+    }
+
     setBusy(true)
     let createdId: string | undefined
     try {
@@ -169,9 +179,9 @@ export default function ContractForm({ open, contract, stores, onClose, onSaved,
         category: form.category || null,
         tags: form.tags,
         amount: form.amount === '' ? null : Number(form.amount),
-        signed_at: form.signed_at || null,
-        start_at: form.start_at || null,
-        end_at: form.end_at || null,
+        signed_at: normDate(form.signed_at),
+        start_at: normDate(form.start_at),
+        end_at: normDate(form.end_at),
         remind_days: form.remind_days,
         auto_renew: form.auto_renew,
         status: form.status,
@@ -232,7 +242,16 @@ export default function ContractForm({ open, contract, stores, onClose, onSaved,
       if (createdId && onAfterCreate) onAfterCreate(createdId)
       else onClose()
     } catch (e) {
-      push(e instanceof Error ? e.message : '保存失败', 'err')
+      // 展开错误对象：Supabase PostgrestError 含 message/code/hint/details；避免吞掉根因
+      let msg = '保存失败'
+      if (e instanceof Error) msg = e.message
+      else if (e && typeof e === 'object') {
+        const anyE = e as { message?: string; code?: string; hint?: string; details?: string }
+        msg = anyE.message || anyE.hint || anyE.details || JSON.stringify(e)
+        if (anyE.code) msg = `[${anyE.code}] ${msg}`
+      } else if (typeof e === 'string') msg = e
+      console.error('[ContractForm] 保存失败：', e)
+      push(msg, 'err')
     } finally {
       setBusy(false)
     }

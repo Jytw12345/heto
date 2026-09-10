@@ -38,10 +38,14 @@ function HomeGate() {
 }
 
 export default function App() {
+  // 把 basename 设为 Vite 注入的 base：本地 '/'，GitHub Pages '/heto/'
+  // 这样所有 <Link to> / navigate('/') / <Navigate to> 都会拼上正确前缀，
+  // 不会再出现"登录后跳到 /contracts 缺 /heto/ 前缀"的问题。
+  const basename = import.meta.env.BASE_URL.replace(/\/$/, '')
   return (
     <AuthProvider>
       <ToastProvider>
-        <BrowserRouter>
+        <BrowserRouter basename={basename || undefined}>
           <Routes>
             <Route path="/login" element={<HomeGate />} />
             <Route
