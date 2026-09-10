@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { Button, Field, Modal, inputCls } from '../components/ui'
 import { useToast } from '../components/Toast'
@@ -14,6 +14,24 @@ import {
 } from '../types'
 
 const LEAD_OPTIONS = [90, 60, 30, 15, 7, 3, 1]
+
+// 日期工具：今天 / 加 N 年
+function todayISO() {
+  return new Date().toISOString().slice(0, 10)
+}
+function addYears(iso: string, n: number) {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return ''
+  const d = new Date(iso)
+  d.setFullYear(d.getFullYear() + n)
+  return d.toISOString().slice(0, 10)
+}
+function fmtDate(iso: string) {
+  if (!iso) return ''
+  // '2025-09-10' → '2025年9月10日'（更直观，规避浏览器原生 date 的"年/月/日"占位）
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!m) return iso
+  return `${m[1]}年${parseInt(m[2], 10)}月${parseInt(m[3], 10)}日`
+}
 
 interface Props {
   open: boolean
@@ -105,6 +123,8 @@ export default function ContractForm({ open, contract, stores, onClose, onSaved,
         note: contract.note ?? '',
       })
     } else {
+      // 新建：填好合理默认值，减少点日历
+      const t = todayISO()
       setForm({
         store_id: isHq ? (stores[0]?.id ?? '') : (profile?.store_id ?? ''),
         title: '',
@@ -114,9 +134,9 @@ export default function ContractForm({ open, contract, stores, onClose, onSaved,
         category: '租赁',
         tags: [],
         amount: '',
-        signed_at: '',
-        start_at: '',
-        end_at: '',
+        signed_at: t,                    // 签于今日
+        start_at: t,                     // 生效今日
+        end_at: addYears(t, 1),          // 到期 +1 年（最常见周期）
         remind_days: [30, 7, 1],
         auto_renew: false,
         status: 'active',
@@ -368,28 +388,52 @@ export default function ContractForm({ open, contract, stores, onClose, onSaved,
           </Field>
 
           <Field label="签订日期">
-            <input
-              type="date"
-              className={inputCls}
-              value={form.signed_at}
-              onChange={(e) => set('signed_at', e.target.value)}
+            <DateField
+                value={form.signed_at}
+                onChange={(v) => set('signed_at', v)}
             />
           </Field>
           <Field label="生效日期">
-            <input
-              type="date"
-              className={inputCls}
-              value={form.start_at}
-              onChange={(e) => set('start_at', e.target.value)}
+            <DateField
+                value={form.start_at}
+                onChange={(v) => set('start_at', v)}
             />
           </Field>
           <Field label="到期日期" hint="到期提醒以这个日期为准">
-            <input
-              type="date"
-              className={inputCls}
-              value={form.end_at}
-              onChange={(e) => set('end_at', e.target.value)}
-            />
+            <div className="space-y-1.5">
+              <DateField value={form.end_at} onChange={(v) => set('end_at', v)} />
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <span className="text-slate-400">快捷：</span>
+                <button
+                  type="button"
+                  onClick={() => set('end_at', todayISO())}
+                  className="rounded border border-slate-200 px-2 py-0.5 text-slate-600 hover:bg-slate-50"
+                >
+                  今天
+                </button>
+                <button
+                  type="button"
+                  onClick={() => set('end_at', addYears(form.start_at || todayISO(), 1))}
+                  className="rounded border border-slate-200 px-2 py-0.5 text-slate-600 hover:bg-slate-50"
+                >
+                  生效+1年
+                </button>
+                <button
+                  type="button"
+                  onClick={() => set('end_at', addYears(form.start_at || todayISO(), 2))}
+                  className="rounded border border-slate-200 px-2 py-0.5 text-slate-600 hover:bg-slate-50"
+                >
+                  +2年
+                </button>
+                <button
+                  type="button"
+                  onClick={() => set('end_at', addYears(form.start_at || todayISO(), 3))}
+                  className="rounded border border-slate-200 px-2 py-0.5 text-slate-600 hover:bg-slate-50"
+                >
+                  +3年
+                </button>
+              </div>
+            </div>
           </Field>
           <Field label="自动续约">
             <select
@@ -492,5 +536,83 @@ export default function ContractForm({ open, contract, stores, onClose, onSaved,
         </div>
       </form>
     </Modal>
+  )
+}
+
+/**
+ * 自定义紧凑日期选择器：
+ * - 显示"2025年9月10日"，没有时显示"选择日期"占位符（替代原生的"年/月/日"）
+ * - 点击触发原生 showPicker() 弹出日历（Chrome/Edge/Safari 14+），不支持的浏览器回退到 focus
+ * - 附带"×"清除按钮
+ * - 隐藏的 <input type="date"> 提供原生日历/键盘输入支持
+ */
+function DateField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const open = () => {
+    const el = inputRef.current
+    if (!el) return
+    // 原生 showPicker：现代浏览器都支持；旧浏览器回退
+    const sp = (el as HTMLInputElement & { showPicker?: () => void }).showPicker
+    if (typeof sp === 'function') {
+      try {
+        sp.call(el)
+        return
+      } catch {
+        /* ignore */
+      }
+    }
+    el.focus()
+  }
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={open}
+        className={`flex w-full items-center justify-between rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-left text-sm transition hover:border-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 focus:outline-none ${
+          value ? 'text-slate-800' : 'text-slate-400'
+        }`}
+      >
+        <span className="inline-flex items-center gap-2">
+          <svg
+            className="h-4 w-4 text-slate-400"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <rect x="3" y="4" width="18" height="18" rx="2" />
+            <path d="M16 2v4M8 2v4M3 10h18" />
+          </svg>
+          {value ? fmtDate(value) : '选择日期'}
+        </span>
+        {value && (
+          <span
+            role="button"
+            tabIndex={-1}
+            onClick={(e) => {
+              e.stopPropagation()
+              onChange('')
+            }}
+            className="ml-2 text-slate-300 hover:text-red-500"
+            aria-label="清除"
+          >
+            ×
+          </span>
+        )}
+      </button>
+      {/* 隐藏的原生 date input：负责日历选择与键盘输入 */}
+      <input
+        ref={inputRef}
+        type="date"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="pointer-events-none absolute inset-0 h-full w-full opacity-0"
+        tabIndex={-1}
+        aria-hidden
+      />
+    </div>
   )
 }
