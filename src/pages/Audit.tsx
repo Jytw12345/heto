@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { Card, Empty, Field, inputCls } from '../components/ui'
 import { formatDate } from '../lib/format'
@@ -12,20 +12,43 @@ const ACTION_GROUPS: { label: string; match: RegExp }[] = [
   { label: '审计 / 系统', match: /^audit\.|\.system/ },
 ]
 
+// 日期分隔条：把跨多天的日志按"今天 / 昨天 / 年月日"分段，避免混成一段难扫读
+function dayKey(d: string): string {
+  const dt = new Date(d)
+  return `${dt.getFullYear()}-${dt.getMonth() + 1}-${dt.getDate()}`
+}
+function dayLabel(d: string): string {
+  const dt = new Date(d)
+  const now = new Date()
+  const yest = new Date()
+  yest.setDate(now.getDate() - 1)
+  const k = dayKey(d)
+  if (k === dayKey(now.toISOString())) return '今天'
+  if (k === dayKey(yest.toISOString())) return '昨天'
+  return `${dt.getFullYear()}年${dt.getMonth() + 1}月${dt.getDate()}日`
+}
+
 export default function Audit() {
   const [logs, setLogs] = useState<AuditLog[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [q, setQ] = useState('')
   const [actionFilter, setActionFilter] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase
+    setError(null)
+    const { data, error: err } = await supabase
       .from('audit_logs')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(500)
-    setLogs((data as AuditLog[]) ?? [])
+    if (err) {
+      setError(err.message)
+      setLogs([])
+    } else {
+      setLogs((data as AuditLog[]) ?? [])
+    }
     setLoading(false)
   }, [])
 
@@ -129,6 +152,16 @@ export default function Audit() {
 
         {loading ? (
           <Empty text="加载中…" />
+        ) : error ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-4 text-center text-sm text-red-600">
+            加载失败：{error}
+            <button
+              onClick={load}
+              className="ml-2 rounded border border-red-300 px-2 py-0.5 text-xs hover:bg-red-100"
+            >
+              重试
+            </button>
+          </div>
         ) : filtered.length === 0 ? (
           <Empty text="暂无记录" />
         ) : (
@@ -139,25 +172,48 @@ export default function Audit() {
                   {g} · {items.length}
                 </div>
                 <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
-                  {items.slice(0, 50).map((l) => (
-                    <li key={l.id} className="grid grid-cols-12 items-center gap-2 px-3 py-2 text-xs">
-                      <span className="col-span-3 font-mono text-slate-400">
-                        {formatDate(l.created_at, true)}
-                      </span>
-                      <span className="col-span-2 rounded bg-slate-100 px-1.5 py-0.5 text-center text-slate-700">
-                        {l.action}
-                      </span>
-                      <span className="col-span-3 truncate text-slate-700">
-                        {l.resource ? `${l.resource} · ${l.resource_id ?? ''}` : '—'}
-                      </span>
-                      <span className="col-span-3 truncate text-slate-500">
-                        {l.actor_email ?? 'system'}
-                      </span>
-                      <span className="col-span-1 text-right text-slate-400">
-                        {l.ip ?? ''}
-                      </span>
-                    </li>
-                  ))}
+                  {items.slice(0, 50).map((l, i) => {
+                    const showSep =
+                      i === 0 || dayKey(items[i - 1].created_at) !== dayKey(l.created_at)
+                    return (
+                      <Fragment key={l.id}>
+                        {showSep && (
+                          <li className="bg-slate-50 px-3 py-1.5 text-[11px] font-medium tracking-wide text-slate-400">
+                            {dayLabel(l.created_at)}
+                          </li>
+                        )}
+                        <li className="grid grid-cols-12 items-center gap-2 px-3 py-2 text-xs">
+                          <span className="col-span-3 font-mono text-slate-400">
+                            {formatDate(l.created_at, true)}
+                          </span>
+                          <span
+                            className="col-span-2 truncate rounded bg-slate-100 px-1.5 py-0.5 text-center text-slate-700"
+                            title={l.action}
+                          >
+                            {l.action}
+                          </span>
+                          <span
+                            className="col-span-3 truncate font-mono text-slate-700"
+                            title={l.resource_id ?? undefined}
+                          >
+                            {l.resource ? `${l.resource} · ${l.resource_id ?? ''}` : '—'}
+                          </span>
+                          <span
+                            className="col-span-3 truncate text-slate-500"
+                            title={l.actor_email ?? undefined}
+                          >
+                            {l.actor_email ?? 'system'}
+                          </span>
+                          <span
+                            className="col-span-1 truncate text-right text-slate-400"
+                            title={l.ip ?? undefined}
+                          >
+                            {l.ip ?? ''}
+                          </span>
+                        </li>
+                      </Fragment>
+                    )
+                  })}
                 </ul>
               </div>
             ))}
