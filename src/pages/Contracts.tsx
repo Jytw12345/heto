@@ -31,6 +31,7 @@ export default function Contracts() {
   const [formOpen, setFormOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<Contract | null>(null)
   const [tags, setTags] = useState<{ name: string }[]>([])
+  const [ourEntities, setOurEntities] = useState<{ name: string }[]>([])
 
   // 筛选
   const [q, setQ] = useState('')
@@ -38,6 +39,7 @@ export default function Contracts() {
   const [statusFilter, setStatusFilter] = useState<ContractStatus | 'all'>('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [tagFilter, setTagFilter] = useState('all')
+  const [ourEntityFilter, setOurEntityFilter] = useState('all')
   const [amountMin, setAmountMin] = useState('')
   const [amountMax, setAmountMax] = useState('')
   const [endBefore, setEndBefore] = useState('')
@@ -50,12 +52,14 @@ export default function Contracts() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const [{ data }, { data: ts }] = await Promise.all([
+    const [{ data }, { data: ts }, { data: oe }] = await Promise.all([
       supabase.from('v_contracts').select('*').order('end_at', { ascending: true, nullsFirst: false }),
       supabase.from('contract_tags').select('name').order('name'),
+      supabase.from('our_entities').select('name').order('name'),
     ])
     setRows((data as Contract[]) ?? [])
     setTags((ts as { name: string }[]) ?? [])
+    setOurEntities((oe as { name: string }[]) ?? [])
     setLoading(false)
   }, [])
 
@@ -81,13 +85,14 @@ export default function Contracts() {
       if (statusFilter !== 'all' && r.status !== statusFilter) return false
       if (categoryFilter !== 'all' && r.category !== categoryFilter) return false
       if (tagFilter !== 'all' && !(r.tags ?? []).includes(tagFilter)) return false
+      if (ourEntityFilter !== 'all' && (r.our_entity ?? '') !== ourEntityFilter) return false
       if (amountMin && (r.amount ?? 0) < Number(amountMin)) return false
       if (amountMax && (r.amount ?? 0) > Number(amountMax)) return false
       if (endBefore && r.end_at && r.end_at > endBefore) return false
       if (endAfter && r.end_at && r.end_at < endAfter) return false
       return true
     })
-  }, [rows, q, storeFilter, statusFilter, categoryFilter, tagFilter, amountMin, amountMax, endBefore, endAfter])
+  }, [rows, q, storeFilter, statusFilter, categoryFilter, tagFilter, ourEntityFilter, amountMin, amountMax, endBefore, endAfter])
 
   // 表格底部统计条
   const stats = useMemo(() => {
@@ -113,6 +118,7 @@ export default function Contracts() {
     storeFilter !== 'all' ||
     categoryFilter !== 'all' ||
     tagFilter !== 'all' ||
+    ourEntityFilter !== 'all' ||
     !!amountMin || !!amountMax || !!endBefore || !!endAfter
 
   function resetFilters() {
@@ -121,6 +127,7 @@ export default function Contracts() {
     setStatusFilter('all')
     setCategoryFilter('all')
     setTagFilter('all')
+    setOurEntityFilter('all')
     setAmountMin('')
     setAmountMax('')
     setEndBefore('')
@@ -201,7 +208,7 @@ export default function Contracts() {
       <Card>
         <div className="flex flex-wrap items-center gap-2">
           <input
-            className={`${inputCls} min-w-[160px] flex-1`}
+            className={`${inputCls} w-[260px] shrink-0`}
             placeholder="搜索名称 / 编号 / 对方公司 / 门店"
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -217,6 +224,17 @@ export default function Contracts() {
               ))}
             </select>
           )}
+          <select
+            className={`${inputClsInline} shrink-0 max-w-[180px]`}
+            value={ourEntityFilter}
+            onChange={(e) => setOurEntityFilter(e.target.value)}
+            title="按我方主体筛选"
+          >
+            <option value="all">全部主体</option>
+            {ourEntities.map((o) => (
+              <option key={o.name} value={o.name}>{o.name}</option>
+            ))}
+          </select>
           <Button variant="ghost" onClick={() => setShowAdvanced((v) => !v)} className={`ml-auto ${showAdvanced ? 'text-indigo-600' : ''}`}>
             {showAdvanced ? '收起筛选' : '高级筛选'}
           </Button>

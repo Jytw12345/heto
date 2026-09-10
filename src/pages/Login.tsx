@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { Button, Field, inputCls } from '../components/ui'
 import { useToast } from '../components/Toast'
+import { checkPassword } from '../lib/password'
 
 export default function Login() {
   const [mode, setMode] = useState<'signin' | 'signup'>('signin')
@@ -11,6 +12,8 @@ export default function Login() {
   const [busy, setBusy] = useState(false)
   const navigate = useNavigate()
   const { push } = useToast()
+
+  const pwCheck = mode === 'signup' ? checkPassword(password) : null
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -21,6 +24,12 @@ export default function Login() {
         if (error) throw error
         navigate('/')
       } else {
+        const check = checkPassword(password)
+        if (!check.ok) {
+          push(check.msg, 'err')
+          setBusy(false)
+          return
+        }
         const { error } = await supabase.auth.signUp({ email, password })
         if (error) throw error
         push('注册成功，请联系总部分配门店后再登录', 'ok')
@@ -60,13 +69,23 @@ export default function Login() {
             <input
               type="password"
               required
-              minLength={6}
+              minLength={8}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className={inputCls}
-              placeholder="至少 6 位"
+              placeholder={mode === 'signup' ? '大写+小写+数字，数字不重复不连续' : '请输入密码'}
               autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
             />
+            {mode === 'signup' && password.length > 0 && (
+              <ul className="mt-1.5 space-y-0.5 text-[11px]">
+                <Req ok={pwCheck!.items.len}>至少 8 位</Req>
+                <Req ok={pwCheck!.items.upper}>含大写字母（A-Z）</Req>
+                <Req ok={pwCheck!.items.lower}>含小写字母（a-z）</Req>
+                <Req ok={pwCheck!.items.digit}>含数字（0-9）</Req>
+                <Req ok={pwCheck!.items.digitUnique}>数字不重复（如 11、22 不行）</Req>
+                <Req ok={pwCheck!.items.digitNoSeq}>数字不连续（如 12、21 不行）</Req>
+              </ul>
+            )}
           </Field>
           <Button type="submit" variant="primary" disabled={busy} className="w-full">
             {busy ? '处理中…' : mode === 'signin' ? '登录' : '注册'}
@@ -88,5 +107,14 @@ export default function Login() {
         </p>
       </div>
     </div>
+  )
+}
+
+function Req({ ok, children }: { ok: boolean; children: React.ReactNode }) {
+  return (
+    <li className={ok ? 'text-emerald-600' : 'text-slate-400'}>
+      <span className="mr-1 inline-block w-3">{ok ? '✓' : '○'}</span>
+      {children}
+    </li>
   )
 }

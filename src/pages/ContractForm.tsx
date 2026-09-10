@@ -444,13 +444,13 @@ export default function ContractForm({ open, contract, stores, onClose, onSaved,
               onChange={(e) => set('counterparty', e.target.value)}
             />
           </Field>
-          <Field label="我方主体" hint="可从下拉选，也可直接输入新主体（保存后自动加入列表）">
+          <Field label="我方主体">
             <input
               list="our-entities-list"
               className={inputCls}
               value={form.our_entity}
               onChange={(e) => set('our_entity', e.target.value)}
-              placeholder="选择或输入我方主体"
+              placeholder="选择或新添加"
             />
             <datalist id="our-entities-list">
               {ourEntities.map((o) => (

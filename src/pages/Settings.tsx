@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { Button, Card, Empty, Field, Modal, inputCls } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { useAuth } from '../hooks/useAuth'
+import { checkPassword } from '../lib/password'
 import type {
   NotifChannel,
   NotifChannelConfig,
@@ -285,7 +286,8 @@ function PasswordModal({ onClose }: { onClose: () => void }) {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (p1.length < 8) return push('密码至少 8 位', 'err')
+    const check = checkPassword(p1)
+    if (!check.ok) return push(check.msg, 'err')
     if (p1 !== p2) return push('两次密码不一致', 'err')
     setBusy(true)
     const { error } = await supabase.auth.updateUser({ password: p1 })
@@ -296,11 +298,23 @@ function PasswordModal({ onClose }: { onClose: () => void }) {
     onClose()
   }
 
+  const pw = checkPassword(p1)
+
   return (
     <Modal open={true} title="修改密码" onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
-        <Field label="新密码（≥ 8 位）">
-          <input type="password" className={inputCls} value={p1} onChange={(e) => setP1(e.target.value)} />
+        <Field label="新密码">
+          <input type="password" className={inputCls} value={p1} onChange={(e) => setP1(e.target.value)} placeholder="大写+小写+数字，数字不重复不连续" />
+          {p1.length > 0 && (
+            <ul className="mt-1.5 space-y-0.5 text-[11px]">
+              <Req ok={pw.items.len}>至少 8 位</Req>
+              <Req ok={pw.items.upper}>含大写字母（A-Z）</Req>
+              <Req ok={pw.items.lower}>含小写字母（a-z）</Req>
+              <Req ok={pw.items.digit}>含数字（0-9）</Req>
+              <Req ok={pw.items.digitUnique}>数字不重复（如 11、22 不行）</Req>
+              <Req ok={pw.items.digitNoSeq}>数字不连续（如 12、21 不行）</Req>
+            </ul>
+          )}
         </Field>
         <Field label="再次输入">
           <input type="password" className={inputCls} value={p2} onChange={(e) => setP2(e.target.value)} />
@@ -313,6 +327,15 @@ function PasswordModal({ onClose }: { onClose: () => void }) {
         </div>
       </form>
     </Modal>
+  )
+}
+
+function Req({ ok, children }: { ok: boolean; children: React.ReactNode }) {
+  return (
+    <li className={ok ? 'text-emerald-600' : 'text-slate-400'}>
+      <span className="mr-1 inline-block w-3">{ok ? '✓' : '○'}</span>
+      {children}
+    </li>
   )
 }
 
