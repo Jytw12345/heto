@@ -42,7 +42,7 @@ export function Modal({
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 sm:items-center">
       <div
-        className={`w-full ${wide ? 'max-w-3xl' : 'max-w-lg'} rounded-xl bg-white shadow-xl`}
+        className={`w-full ${wide ? 'max-w-4xl' : 'max-w-lg'} rounded-xl bg-white shadow-xl`}
       >
         <header className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
           <h3 className="text-base font-medium text-slate-900">{title}</h3>

@@ -6,6 +6,7 @@ import { useAuth } from '../hooks/useAuth'
 import type {
   NotifChannel,
   NotifChannelConfig,
+  OurEntity,
   ReminderRule,
 } from '../types'
 import { CATEGORIES } from '../types'
@@ -40,14 +41,18 @@ export default function Settings() {
   const [channelModal, setChannelModal] = useState<NotifChannelConfig | 'new' | null>(null)
   const [rules, setRules] = useState<ReminderRule[]>([])
   const [ruleModal, setRuleModal] = useState<ReminderRule | 'new' | null>(null)
+  const [entities, setEntities] = useState<OurEntity[]>([])
+  const [entityName, setEntityName] = useState('')
 
   const load = useCallback(async () => {
-    const [{ data: c }, { data: r }] = await Promise.all([
+    const [{ data: c }, { data: r }, { data: e }] = await Promise.all([
       supabase.from('notification_channels').select('*').order('created_at', { ascending: false }),
       supabase.from('reminder_rules').select('*').order('created_at', { ascending: false }),
+      supabase.from('our_entities').select('*').order('name'),
     ])
     setChannels((c as NotifChannelConfig[]) ?? [])
     setRules((r as ReminderRule[]) ?? [])
+    setEntities((e as OurEntity[]) ?? [])
   }, [])
 
   useEffect(() => {
@@ -77,6 +82,20 @@ export default function Settings() {
     await supabase.rpc('write_audit', { p_action: 'profile.update.self', p_resource: 'profile', p_resource_id: user.id })
     push('已保存', 'ok')
     refreshProfile()
+  }
+
+  async function addEntity() {
+    const n = entityName.trim()
+    if (!n) return
+    const { error } = await supabase.from('our_entities').insert({ name: n })
+    if (error) return push(error.message, 'err')
+    setEntityName('')
+    load()
+  }
+  async function delEntity(id: string) {
+    const { error } = await supabase.from('our_entities').delete().eq('id', id)
+    if (error) return push(error.message, 'err')
+    load()
   }
 
   return (
@@ -193,6 +212,45 @@ export default function Settings() {
           </p>
         </Card>
       )}
+
+      <Card title="我方主体" extra={<span className="text-xs text-slate-400">合同「我方主体」可选列表，可增删</span>}>
+        {entities.length === 0 ? (
+          <Empty text="还没有我方主体" />
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {entities.map((o) => (
+              <span
+                key={o.id}
+                className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700"
+              >
+                {o.name}
+                <button
+                  type="button"
+                  onClick={() => delEntity(o.id)}
+                  className="text-slate-400 hover:text-red-500"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="mt-3 flex gap-2">
+          <input
+            className={inputCls}
+            value={entityName}
+            onChange={(e) => setEntityName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                addEntity()
+              }
+            }}
+            placeholder="新增我方主体，如：济宁市万紫千红文化传媒有限公司"
+          />
+          <Button variant="primary" onClick={addEntity}>添加</Button>
+        </div>
+      </Card>
 
       {passwordOpen && <PasswordModal onClose={() => setPasswordOpen(false)} />}
       {channelModal && (

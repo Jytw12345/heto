@@ -15,6 +15,13 @@ export interface Store {
   created_at: string
 }
 
+// 我方主体字典（合同「我方主体」下拉的可选列表）
+export interface OurEntity {
+  id: string
+  name: string
+  created_at?: string
+}
+
 export interface Profile {
   id: string
   store_id: string | null

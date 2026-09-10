@@ -1,19 +1,37 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { uploadFile, validateFile } from '../lib/storage'
+import { formatBytes } from '../lib/format'
 import { Button, Field, Modal, inputCls } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { useAuth } from '../hooks/useAuth'
 import {
   CATEGORIES,
   STATUS_LABEL,
+  FILE_KIND_LABEL,
+  FILE_KIND_ORDER,
   type Contract,
   type ContractStatus,
   type ContractTag,
   type ContractTemplate,
+  type FileKind,
+  type OurEntity,
   type Store,
 } from '../types'
 
 const LEAD_OPTIONS = [90, 60, 30, 15, 7, 3, 1]
+
+// 新建/续签时暂存的待上传附件（保存时先建合同拿到 id 再批量上传）
+interface PendingFile {
+  id: number
+  file: File
+  kind: FileKind
+  name: string
+  size: number
+  status: 'pending' | 'uploading' | 'done' | 'error'
+  pct: number
+  error?: string
+}
 
 // 日期工具：今天 / 加 N 年
 function todayISO() {
@@ -69,11 +87,20 @@ export default function ContractForm({ open, contract, stores, onClose, onSaved,
   const [tagInput, setTagInput] = useState('')
   const [tags, setTags] = useState<ContractTag[]>([])
   const [templates, setTemplates] = useState<ContractTemplate[]>([])
+  const [ourEntities, setOurEntities] = useState<OurEntity[]>([])
+  // 新建/续签时暂存的附件
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([])
+  const [fileKind, setFileKind] = useState<FileKind>('original')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const fileSeq = useRef(0)
 
   useEffect(() => {
     if (!open) return
     supabase.from('contract_tags').select('*').order('name').then(({ data }) => {
       setTags((data as ContractTag[]) ?? [])
+    })
+    supabase.from('our_entities').select('*').order('name').then(({ data }) => {
+      setOurEntities((data as OurEntity[]) ?? [])
     })
     if (can('template.manage') || !isHq) {
       // 模板只对总部可写但所有人都可读
@@ -172,6 +199,57 @@ export default function ContractForm({ open, contract, stores, onClose, onSaved,
     }
   }
 
+  // 新建/续签：合同创建成功后，批量上传暂存附件（串行，逐个更新进度）
+  async function uploadPending(contractId: string, files: PendingFile[]) {
+    for (const pf of files) {
+      setPendingFiles((p) => p.map((x) => (x.id === pf.id ? { ...x, status: 'uploading', pct: 0 } : x)))
+      try {
+        const res = await uploadFile(pf.file, {
+          storeId: form.store_id,
+          contractId,
+          onProgress: (pct) => setPendingFiles((p) => p.map((x) => (x.id === pf.id ? { ...x, pct } : x))),
+        })
+        const { error } = await supabase.from('contract_files').insert({
+          contract_id: contractId,
+          store_id: form.store_id,
+          file_path: res.path,
+          file_name: res.name,
+          mime_type: res.mime,
+          size_bytes: res.size,
+          sha256: res.sha256,
+          kind: pf.kind,
+        })
+        if (error) throw error
+        setPendingFiles((p) => p.map((x) => (x.id === pf.id ? { ...x, status: 'done', pct: 1 } : x)))
+        push(`「${pf.name}」上传完成`, 'ok')
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : '上传失败'
+        setPendingFiles((p) => p.map((x) => (x.id === pf.id ? { ...x, status: 'error', error: msg } : x)))
+        push(`附件「${pf.name}」上传失败：${msg}`, 'err')
+      }
+    }
+  }
+
+  function addFiles(files: FileList | File[]) {
+    const list = Array.from(files)
+    if (!list.length) return
+    for (const f of list) {
+      const err = validateFile(f)
+      if (err) {
+        push(err, 'err')
+        continue
+      }
+      setPendingFiles((p) => [
+        ...p,
+        { id: ++fileSeq.current, file: f, kind: fileKind, name: f.name, size: f.size, status: 'pending', pct: 0 },
+      ])
+    }
+  }
+
+  function removePending(id: number) {
+    setPendingFiles((p) => p.filter((x) => x.id !== id))
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.title.trim()) return push('合同名称不能为空', 'err')
@@ -190,6 +268,14 @@ export default function ContractForm({ open, contract, stores, onClose, onSaved,
     setBusy(true)
     let createdId: string | undefined
     try {
+      // 我方主体：输入了字典里没有的新值时，先写入字典表（下次可直接选）。
+      // 失败忽略（并发唯一冲突等），不影响合同保存；name 唯一约束保证不重复。
+      if (form.our_entity.trim()) {
+        const exists = ourEntities.some((o) => o.name === form.our_entity.trim())
+        if (!exists) {
+          await supabase.from('our_entities').insert({ name: form.our_entity.trim() }).then(() => {})
+        }
+      }
       const payload = {
         store_id: form.store_id,
         title: form.title.trim(),
@@ -258,6 +344,10 @@ export default function ContractForm({ open, contract, stores, onClose, onSaved,
         createdId = data?.id ?? undefined
         push('合同已创建，正在打开上传页…', 'ok')
       }
+      // 新建/续签创建成功后，若有待上传附件，先批量上传再继续
+      if (createdId && pendingFiles.length > 0) {
+        await uploadPending(createdId, pendingFiles)
+      }
       onSaved()
       if (createdId && onAfterCreate) onAfterCreate(createdId)
       else onClose()
@@ -302,17 +392,15 @@ export default function ContractForm({ open, contract, stores, onClose, onSaved,
           </Field>
         )}
 
-        <div className="grid grid-cols-2 gap-x-3 gap-y-3 lg:grid-cols-3">
-          <div className="col-span-2 lg:col-span-3">
-            <Field label="合同名称 *">
-              <input
-                className={inputCls}
-                value={form.title}
-                onChange={(e) => set('title', e.target.value)}
-                placeholder="如：万达广场商铺租赁合同"
-              />
-            </Field>
-          </div>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <Field label="合同名称 *">
+            <input
+              className={inputCls}
+              value={form.title}
+              onChange={(e) => set('title', e.target.value)}
+              placeholder="如：万达广场商铺租赁合同"
+            />
+          </Field>
           <Field label="合同编号">
             <input
               className={inputCls}
@@ -356,12 +444,19 @@ export default function ContractForm({ open, contract, stores, onClose, onSaved,
               onChange={(e) => set('counterparty', e.target.value)}
             />
           </Field>
-          <Field label="我方主体">
+          <Field label="我方主体" hint="可从下拉选，也可直接输入新主体（保存后自动加入列表）">
             <input
+              list="our-entities-list"
               className={inputCls}
               value={form.our_entity}
               onChange={(e) => set('our_entity', e.target.value)}
+              placeholder="选择或输入我方主体"
             />
+            <datalist id="our-entities-list">
+              {ourEntities.map((o) => (
+                <option key={o.id} value={o.name} />
+              ))}
+            </datalist>
           </Field>
 
           <Field label="合同金额（元）">
@@ -375,17 +470,14 @@ export default function ContractForm({ open, contract, stores, onClose, onSaved,
               placeholder={can('amount.edit') ? '' : '无权修改'}
             />
           </Field>
-          <Field label="状态">
+          <Field label="自动续约">
             <select
               className={inputCls}
-              value={form.status}
-              onChange={(e) => set('status', e.target.value as ContractStatus)}
+              value={form.auto_renew ? '1' : '0'}
+              onChange={(e) => set('auto_renew', e.target.value === '1')}
             >
-              {(Object.keys(STATUS_LABEL) as ContractStatus[]).map((s) => (
-                <option key={s} value={s}>
-                  {STATUS_LABEL[s]}
-                </option>
-              ))}
+              <option value="0">否</option>
+              <option value="1">是</option>
             </select>
           </Field>
 
@@ -401,131 +493,175 @@ export default function ContractForm({ open, contract, stores, onClose, onSaved,
                 onChange={(v) => set('start_at', v)}
             />
           </Field>
-          <div className="col-span-2 lg:col-span-2">
-            <Field label="到期日期" hint="到期提醒以这个日期为准">
-              <div className="space-y-1.5">
-                <DateField value={form.end_at} onChange={(v) => set('end_at', v)} />
-                <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                  <span className="text-slate-400">快捷：</span>
-                  <button
-                    type="button"
-                    onClick={() => set('end_at', todayISO())}
-                    className="rounded border border-slate-200 px-2 py-0.5 text-slate-600 hover:bg-slate-50"
-                  >
-                    今天
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => set('end_at', addYears(form.start_at || todayISO(), 1))}
-                    className="rounded border border-slate-200 px-2 py-0.5 text-slate-600 hover:bg-slate-50"
-                  >
-                    生效+1年
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => set('end_at', addYears(form.start_at || todayISO(), 2))}
-                    className="rounded border border-slate-200 px-2 py-0.5 text-slate-600 hover:bg-slate-50"
-                  >
-                    +2年
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => set('end_at', addYears(form.start_at || todayISO(), 3))}
-                    className="rounded border border-slate-200 px-2 py-0.5 text-slate-600 hover:bg-slate-50"
-                  >
-                    +3年
-                  </button>
-                </div>
-              </div>
-            </Field>
-          </div>
-          <Field label="自动续约">
+          <Field label="到期日期" hint="到期提醒以这个日期为准">
+            <DateField value={form.end_at} onChange={(v) => set('end_at', v)} />
+          </Field>
+          <Field label="状态">
             <select
               className={inputCls}
-              value={form.auto_renew ? '1' : '0'}
-              onChange={(e) => set('auto_renew', e.target.value === '1')}
+              value={form.status}
+              onChange={(e) => set('status', e.target.value as ContractStatus)}
             >
-              <option value="0">否</option>
-              <option value="1">是</option>
+              {(Object.keys(STATUS_LABEL) as ContractStatus[]).map((s) => (
+                <option key={s} value={s}>
+                  {STATUS_LABEL[s]}
+                </option>
+              ))}
             </select>
           </Field>
         </div>
 
-        <Field label="标签" hint="Enter 添加">
-          <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 px-2 py-1.5">
-            {form.tags.map((t) => (
-              <span
-                key={t}
-                className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700"
-              >
-                {t}
-                <button
-                  type="button"
-                  onClick={() => set('tags', form.tags.filter((x) => x !== t))}
-                  className="text-slate-400 hover:text-red-500"
+        <div className="grid grid-cols-1 gap-x-3 gap-y-3 lg:grid-cols-2">
+          <Field label="标签" hint="Enter 添加">
+            <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 px-2 py-1.5">
+              {form.tags.map((t) => (
+                <span
+                  key={t}
+                  className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700"
                 >
-                  ×
-                </button>
-              </span>
-            ))}
-            <input
-              className="flex-1 bg-transparent text-sm outline-none"
-              value={tagInput}
-              onChange={(e) => setTagInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  addTag(tagInput)
-                  setTagInput('')
-                }
-              }}
-              placeholder={form.tags.length === 0 ? '如：续签 / 重要 / 已审' : ''}
-            />
-            {tags.length > 0 && (
-              <select
-                className="bg-transparent text-xs text-slate-500 outline-none"
-                value=""
-                onChange={(e) => { if (e.target.value) { addTag(e.target.value); setTagInput('') } }}
-              >
-                <option value="">从已有选择…</option>
-                {tags.filter((t) => !form.tags.includes(t.name)).map((t) => (
-                  <option key={t.id} value={t.name}>{t.name}</option>
-                ))}
-              </select>
-            )}
-          </div>
-        </Field>
-
-        <Field label="提前提醒" hint="到期前这几天各推一次，站内 + 邮件 + 推送渠道">
-          <div className="flex flex-wrap gap-2">
-            {LEAD_OPTIONS.map((d) => {
-              const on = form.remind_days.includes(d)
-              return (
-                <button
-                  key={d}
-                  type="button"
-                  onClick={() =>
-                    set(
-                      'remind_days',
-                      on ? form.remind_days.filter((x) => x !== d) : [...form.remind_days, d],
-                    )
+                  {t}
+                  <button
+                    type="button"
+                    onClick={() => set('tags', form.tags.filter((x) => x !== t))}
+                    className="text-slate-400 hover:text-red-500"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+              <input
+                className="min-w-[60px] max-w-[140px] flex-1 bg-transparent text-sm outline-none"
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    addTag(tagInput)
+                    setTagInput('')
                   }
-                  className={`rounded-lg border px-3 py-1.5 text-xs transition ${
-                    on
-                      ? 'border-slate-900 bg-slate-900 text-white'
-                      : 'border-slate-300 text-slate-600 hover:bg-slate-50'
-                  }`}
+                }}
+                placeholder={form.tags.length === 0 ? '如：续签 / 重要 / 已审' : ''}
+              />
+              {tags.length > 0 && (
+                <select
+                  className="bg-transparent text-xs text-slate-500 outline-none"
+                  value=""
+                  onChange={(e) => { if (e.target.value) { addTag(e.target.value); setTagInput('') } }}
                 >
-                  提前 {d} 天
+                  <option value="">从已有选择…</option>
+                  {tags.filter((t) => !form.tags.includes(t.name)).map((t) => (
+                    <option key={t.id} value={t.name}>{t.name}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          </Field>
+
+          <Field label="提前提醒" hint="到期前几天各推一次">
+            <div className="flex flex-wrap gap-1.5">
+              {LEAD_OPTIONS.map((d) => {
+                const on = form.remind_days.includes(d)
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() =>
+                      set(
+                        'remind_days',
+                        on ? form.remind_days.filter((x) => x !== d) : [...form.remind_days, d],
+                      )
+                    }
+                    className={`rounded border px-2 py-0.5 text-[11px] transition ${
+                      on
+                        ? 'border-slate-900 bg-slate-900 text-white'
+                        : 'border-slate-300 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    {d}天
+                  </button>
+                )
+              })}
+            </div>
+          </Field>
+        </div>
+
+        {!contract && (
+          <Field label="附件（可选）" hint="保存时一并上传，可多选">
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                <select
+                  value={fileKind}
+                  onChange={(e) => setFileKind(e.target.value as FileKind)}
+                  className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 outline-none focus:border-indigo-400"
+                >
+                  {FILE_KIND_ORDER.map((k) => (
+                    <option key={k} value={k}>
+                      {FILE_KIND_LABEL[k]}
+                    </option>
+                  ))}
+                </select>
+                <span>本次选择的文件归为此类</span>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="ml-auto rounded border border-slate-300 px-2 py-1 text-slate-600 hover:bg-slate-50"
+                >
+                  选择文件
                 </button>
-              )
-            })}
-          </div>
-        </Field>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif,.doc,.docx,.zip,.rar"
+                  onChange={(e) => {
+                    if (e.target.files) addFiles(e.target.files)
+                    e.target.value = ''
+                  }}
+                />
+              </div>
+              {pendingFiles.length > 0 && (
+                <ul className="space-y-1.5">
+                  {pendingFiles.map((pf) => (
+                    <li
+                      key={pf.id}
+                      className="flex items-center gap-2 rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
+                    >
+                      <span className="min-w-0 flex-1 truncate text-slate-700">{pf.name}</span>
+                      <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">
+                        {FILE_KIND_LABEL[pf.kind]}
+                      </span>
+                      <span className="shrink-0 text-slate-400">{formatBytes(pf.size)}</span>
+                      <span className="shrink-0 text-slate-400">
+                        {pf.status === 'done' ? (
+                          <span className="text-emerald-600">✓</span>
+                        ) : pf.status === 'error' ? (
+                          <span className="text-red-500" title={pf.error}>
+                            ✗
+                          </span>
+                        ) : pf.status === 'uploading' ? (
+                          `${Math.round(pf.pct * 100)}%`
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => removePending(pf.id)}
+                            className="text-slate-400 hover:text-red-500"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </Field>
+        )}
 
         <Field label="备注">
           <textarea
-            rows={3}
+            rows={2}
             className={inputCls}
             value={form.note}
             onChange={(e) => set('note', e.target.value)}
