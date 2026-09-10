@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, Cell, Label, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { Card, Empty, Pill } from '../components/ui'
@@ -173,14 +173,50 @@ export default function Dashboard() {
       {isHq && (
         <div className="grid gap-4 lg:grid-cols-3">
           <Card title="状态分布">
-            <ResponsiveContainer width="100%" height={180}>
+            <ResponsiveContainer width="100%" height={200}>
               <PieChart>
-                <Pie data={byStatus} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label={(d: any) => `${d.name} ${d.value}`}>
+                <Pie
+                  data={byStatus}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="45%"
+                  innerRadius={42}
+                  outerRadius={66}
+                  paddingAngle={1}
+                >
                   {byStatus.map((d, i) => (
                     <Cell key={i} fill={d.color} />
                   ))}
+                  <Label
+                    position="center"
+                    content={({ viewBox }) => {
+                      const { cx, cy } = viewBox as { cx: number; cy: number }
+                      return (
+                        <g>
+                          <text x={cx} y={cy - 6} textAnchor="middle" className="fill-slate-800" style={{ fontSize: 20, fontWeight: 700 }}>
+                            {rows.length}
+                          </text>
+                          <text x={cx} y={cy + 12} textAnchor="middle" className="fill-slate-400" style={{ fontSize: 11 }}>
+                            合同总数
+                          </text>
+                        </g>
+                      )
+                    }}
+                  />
                 </Pie>
                 <Tooltip />
+                <Legend
+                  verticalAlign="bottom"
+                  height={24}
+                  iconType="circle"
+                  iconSize={8}
+                  wrapperStyle={{ fontSize: 11 }}
+                  formatter={(value) => {
+                    const rec = byStatus.find((b) => b.name === value)
+                    return `${value}  ${rec?.value ?? ''}`
+                  }}
+                />
               </PieChart>
             </ResponsiveContainer>
           </Card>
