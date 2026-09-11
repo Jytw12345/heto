@@ -328,7 +328,7 @@ export default function ContractDetail() {
             )}
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end print:hidden">
               <Button onClick={() => window.print()} className="hidden sm:inline-flex">🖨 打印</Button>
-              <Button className="w-full sm:w-auto" onClick={openDocPicker}>📄 合同文档</Button>
+              <Button className="w-full sm:w-auto" onClick={openDocPicker}>📄 生成文档</Button>
               {can('contract.renew') && c.status !== 'cancelled' && (
                 <Button className="w-full sm:w-auto" onClick={() => setRenewOpen(true)}>🔁 一键续签</Button>
               )}
@@ -559,10 +559,18 @@ export default function ContractDetail() {
               <Button disabled={savingDoc} onClick={saveDocAsAttachment}>
                 {savingDoc ? '保存中…' : '存为合同附件'}
               </Button>
-              <Button onClick={() => printHtml(currentDocHtml(), docPreview.filename)}>打印 / 存为 PDF</Button>
+              <Button onClick={() => printHtml(currentDocHtml(), docPreview.filename)}>打印</Button>
+              <Button
+                onClick={() => {
+                  printHtml(currentDocHtml(), docPreview.filename)
+                  push('在打印窗口的「目标」选「另存为 PDF」即可导出 PDF 文件', 'ok')
+                }}
+              >
+                导出 PDF
+              </Button>
             </div>
             <div className="min-h-0 flex-1 overflow-auto p-3">
-              <RichEditor editorRef={docEditorRef} minHeight={520} onMessage={(m) => push(m, 'err')} />
+              <RichEditor editorRef={docEditorRef} minHeight={520} pageView onMessage={(m) => push(m, 'err')} />
             </div>
           </div>
         )}

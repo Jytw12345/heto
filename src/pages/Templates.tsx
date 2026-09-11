@@ -384,6 +384,7 @@ export default function Templates() {
             <RichEditor
               editorRef={editorRef}
               readOnly={!editable}
+              pageView
               onMessage={(m) => push(m, 'err')}
             />
             <p className="mt-2 text-xs leading-relaxed text-slate-400">
@@ -432,7 +433,15 @@ export default function Templates() {
               >
                 下载 Word（.docx）
               </Button>
-              <Button onClick={() => printHtml(preview.html, preview.filename)}>打印 / 存为 PDF</Button>
+              <Button onClick={() => printHtml(preview.html, preview.filename)}>打印</Button>
+              <Button
+                onClick={() => {
+                  printHtml(preview.html, preview.filename)
+                  push('在打印窗口的「目标」选「另存为 PDF」即可导出 PDF 文件', 'ok')
+                }}
+              >
+                导出 PDF
+              </Button>
             </div>
             <div className="min-h-0 flex-1 overflow-auto p-4">
               <div

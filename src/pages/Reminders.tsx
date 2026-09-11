@@ -62,6 +62,19 @@ export default function Reminders() {
     load()
   }
 
+  /** 删除单条提醒 */
+  async function deleteNotif(id: string) {
+    await supabase.from('notifications').delete().eq('id', id).eq('user_id', user?.id ?? '')
+    load()
+  }
+
+  /** 一键清除所有已读提醒（未读的不动） */
+  async function clearRead() {
+    if (!user) return
+    await supabase.from('notifications').delete().eq('user_id', user.id).not('read_at', 'is', null)
+    load()
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
@@ -77,6 +90,9 @@ export default function Reminders() {
           )}
         </TabBtn>
         <div className="flex-1" />
+        {tab === 'inbox' && notifs.some((n) => n.read_at) && (
+          <Button onClick={clearRead}>清除已读</Button>
+        )}
         {tab === 'inbox' && notifs.some((n) => !n.read_at) && (
           <Button onClick={markAllRead}>全部标为已读</Button>
         )}
@@ -151,6 +167,14 @@ export default function Reminders() {
                         查看 →
                       </Link>
                     )}
+                    <button
+                      type="button"
+                      title="删除这条提醒"
+                      onClick={() => deleteNotif(n.id)}
+                      className="shrink-0 rounded px-1 text-sm leading-none text-slate-300 transition hover:text-red-500"
+                    >
+                      ✕
+                    </button>
                   </div>
                 </li>
               ))}

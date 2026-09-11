@@ -182,7 +182,7 @@ export interface AuditLog {
   created_at: string
 }
 
-export const CATEGORIES = ['采购', '设计', '印刷', '安装', '施工', '服务', '广告', '装修', '租赁', '制作', '其他'] as const
+export const CATEGORIES = ['采购', '设计', '印刷', '安装', '施工', '服务', '广告', '装修', '租赁', '制作', '维保', '其他'] as const
 
 export const FILE_KIND_LABEL: Record<FileKind, string> = {
   original: '合同正本',

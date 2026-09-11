@@ -414,6 +414,12 @@ function tableXml(tbl: Element): string {
 
   const trs = rows
     .map((tr) => {
+      // 行高：tr 的 height（内联样式或 height 属性，px）→ w:trHeight（px→twips ×15），atLeast 规则
+      const hpx = parseFloat(styleOf(tr).height ?? tr.getAttribute('height') ?? '')
+      const trPr =
+        Number.isFinite(hpx) && hpx > 0
+          ? `<w:trPr><w:trHeight w:val="${Math.round(hpx * 15)}" w:hRule="atLeast"/></w:trPr>`
+          : ''
       const tcs: string[] = []
       let c = 0
       for (const tc of kids(tr)) {
@@ -456,7 +462,7 @@ function tableXml(tbl: Element): string {
         }
         tcs.push(`<w:tc><w:tcPr>${tcPr}</w:tcPr>${content}</w:tc>`)
       }
-      return `<w:tr>${tcs.join('')}</w:tr>`
+      return `<w:tr>${trPr}${tcs.join('')}</w:tr>`
     })
     .join('')
 

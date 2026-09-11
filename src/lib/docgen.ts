@@ -200,20 +200,35 @@ export function downloadWord(innerHtml: string, filename: string, title: string)
   triggerDownload(new Blob(['\ufeff' + html], { type: 'application/msword' }), name)
 }
 
-/** 打印（浏览器里选「另存为 PDF」即可得到 PDF 电子版） */
+/** 打印（浏览器里选「另存为 PDF」即可得到 PDF 电子版）。
+ * 用隐藏 iframe 而非 window.open：后者会被弹窗拦截（返回 null）导致点了没反应。 */
 export function printHtml(innerHtml: string, title: string): boolean {
-  const w = window.open('', '_blank', 'width=900,height=1000')
-  if (!w) return false
-  w.document.open()
-  w.document.write(toWordHtml(innerHtml, title))
-  w.document.close()
-  w.focus()
-  // 等样式与字体应用后再唤起打印，避免打出空白页
+  // 移除上一次残留的打印框
+  document.getElementById('print-frame')?.remove()
+  const iframe = document.createElement('iframe')
+  iframe.id = 'print-frame'
+  iframe.style.position = 'fixed'
+  iframe.style.right = '0'
+  iframe.style.bottom = '0'
+  iframe.style.width = '0'
+  iframe.style.height = '0'
+  iframe.style.border = '0'
+  document.body.appendChild(iframe)
+  const doc = iframe.contentWindow?.document
+  if (!doc) return false
+  doc.open()
+  doc.write(toWordHtml(innerHtml, title))
+  doc.close()
+  // 等样式与字体应用后再唤起打印，避免打出空白页；打印后清理
+  const win = iframe.contentWindow as Window
   setTimeout(() => {
     try {
-      w.print()
+      win.focus()
+      win.print()
     } catch {
-      /* 用户可能已关闭窗口 */
+      /* 打印被取消或环境不支持 */
+    } finally {
+      setTimeout(() => iframe.remove(), 1000)
     }
   }, 350)
   return true

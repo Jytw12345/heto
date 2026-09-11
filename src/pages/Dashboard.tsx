@@ -124,14 +124,14 @@ export default function Dashboard() {
     return [...map.entries()].map(([name, value]) => ({ name, value }))
   })()
 
-  // 金额区间分布（按 5 万桶）
+  // 金额区间分布（业务以 10 万以下小额项目为主：10 万以下细分、以上合并一档）
   const amountBuckets = (() => {
     const buckets = [
       { name: '<1万', min: 0, max: 10_000, n: 0 },
-      { name: '1-5万', min: 10_000, max: 50_000, n: 0 },
+      { name: '1-3万', min: 10_000, max: 30_000, n: 0 },
+      { name: '3-5万', min: 30_000, max: 50_000, n: 0 },
       { name: '5-10万', min: 50_000, max: 100_000, n: 0 },
-      { name: '10-50万', min: 100_000, max: 500_000, n: 0 },
-      { name: '50万+', min: 500_000, max: Infinity, n: 0 },
+      { name: '10万+', min: 100_000, max: Infinity, n: 0 },
     ]
     active.forEach((r) => {
       const a = r.amount ?? 0

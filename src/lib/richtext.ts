@@ -556,6 +556,30 @@ export function getColWidth(root: HTMLElement): number | null {
 }
 
 /**
+ * 设置行高（最小值，内容变多时行仍会自动撑高）。px 单位。
+ * allRows=true 时应用到整表所有行；false 只设光标所在行。
+ * tr 的 height 在 HTML 表格语义里就是「最小行高」，与 Word 的 atLeast 规则一致。
+ */
+export function setRowHeight(root: HTMLElement, px: number, allRows = false): string | null {
+  const table = currentTable(root)
+  const cell = currentCell(root)
+  if (!table || !cell) return '请先把光标放进表格里'
+  const h = Math.min(400, Math.max(20, Math.round(px)))
+  const targets = allRows ? Array.from(table.rows) : [cell.closest('tr') as HTMLTableRowElement | null].filter(Boolean)
+  for (const tr of targets) tr.style.height = `${h}px`
+  return null
+}
+
+/** 读取光标所在行已设的行高（px），未设返回 null */
+export function getRowHeight(root: HTMLElement): number | null {
+  const cell = currentCell(root)
+  const tr = cell?.closest('tr') as HTMLTableRowElement | null
+  if (!tr) return null
+  const m = tr.style.height.match(/([\d.]+)\s*px/)
+  return m ? parseFloat(m[1]) : null
+}
+
+/**
  * 清洗「从 Word / 网页粘贴」进来的 HTML：
  * 丢掉 mso-* 私有样式、class/id、脚本与图片，把 <font> 统一成 <span style>，
  * 保留段落、标题、表格、列表等结构，尽量接近 Word 的观感。
@@ -625,11 +649,11 @@ export function insertTable(rows: number, cols: number, withHeader = true) {
   const border = 'border:1px solid #000'
   let html = `<table style="border-collapse:collapse;width:100%;table-layout:fixed">`
   if (withHeader) {
-    html += `<thead><tr>${'<th style="border:1px solid #000;background:#f2f2f2;text-align:center">&nbsp;</th>'.repeat(c)}</tr></thead>`
+    html += `<thead><tr style="height:32px">${'<th style="border:1px solid #000;background:#f2f2f2;text-align:center">&nbsp;</th>'.repeat(c)}</tr></thead>`
   }
   html += '<tbody>'
   for (let i = 0; i < (withHeader ? r - 1 : r); i++) {
-    html += `<tr>${`<td style="${border}">&nbsp;</td>`.repeat(c)}</tr>`
+    html += `<tr style="height:32px">${`<td style="${border}">&nbsp;</td>`.repeat(c)}</tr>`
   }
   html += '</tbody></table><p>&nbsp;</p>'
   insertHtml(html)

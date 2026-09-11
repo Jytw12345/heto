@@ -21,8 +21,10 @@ import {
   exec,
   fitTable,
   getColWidth,
+  getRowHeight,
   insertCol,
   setColWidth,
+  setRowHeight,
   insertHtml,
   insertRow,
   insertTable,
@@ -51,11 +53,14 @@ export function RichEditor({
   readOnly = false,
   onMessage,
   minHeight = 460,
+  pageView = false,
 }: {
   editorRef: RefObject<HTMLDivElement>
   readOnly?: boolean
   onMessage?: (msg: string) => void
   minHeight?: number
+  /** 页面视图：灰色工作区 + 居中 A4 比例「纸张」（约 21cm 宽 + Word 式页边距），行宽不再随容器无限拉伸 */
+  pageView?: boolean
 }) {
   const [tablePanel, setTablePanel] = useState(false)
   const [fieldPanel, setFieldPanel] = useState(false)
@@ -65,7 +70,9 @@ export function RichEditor({
   const [tblHeader, setTblHeader] = useState(true)
   const [indentOn, setIndentOn] = useState(false)
   const [colW, setColW] = useState(25)
+  const [rowH, setRowH] = useState(32)
   const colInputFocused = useRef(false)
+  const rowInputFocused = useRef(false)
 
   const savedRange = useRef<Range | null>(null)
 
@@ -83,6 +90,10 @@ export function RichEditor({
       if (!colInputFocused.current) {
         const w = getColWidth(root)
         if (w != null) setColW(Math.round(w))
+      }
+      if (!rowInputFocused.current) {
+        const h = getRowHeight(root)
+        if (h != null) setRowH(Math.round(h))
       }
     }
     document.addEventListener('selectionchange', onSel)
@@ -350,10 +361,10 @@ export function RichEditor({
           </span>
         </div>
 
-        {/* 表格面板 */}
+        {/* 表格面板：桌面端两列网格排布，短组两两配对避免半行留白 */}
         {tablePanel && (
-          <div className="space-y-2 rounded-lg border border-slate-200 bg-white p-2.5">
-            <div className="flex flex-wrap items-end gap-2">
+          <div className="grid gap-2 rounded-lg border border-slate-200 bg-white p-2.5 md:grid-cols-2 md:gap-x-6">
+            <div className="flex flex-wrap items-end gap-2 md:col-span-full">
               <span className="text-[11px] font-medium text-slate-500">插入表格</span>
               <label className="flex items-center gap-1 text-xs text-slate-600">
                 行
@@ -453,6 +464,28 @@ export function RichEditor({
             </div>
 
             <div className="flex flex-wrap items-center gap-1.5">
+              <span className="w-12 text-[11px] font-medium text-slate-500">行高</span>
+              <input
+                type="number"
+                min={20}
+                max={400}
+                value={rowH}
+                disabled={readOnly}
+                onFocus={() => (rowInputFocused.current = true)}
+                onBlur={() => (rowInputFocused.current = false)}
+                onChange={(e) => setRowH(Math.max(20, Math.min(400, Number(e.target.value) || 20)))}
+                className={`${sel} w-16`}
+              />
+              <span className="text-[11px] text-slate-400">px（最小行高，内容多时自动撑高）</span>
+              <TB title="把光标所在行设为该行高" disabled={!inTable} onClick={() => run((r) => setRowHeight(r, rowH))}>
+                应用于当前行
+              </TB>
+              <TB title="整张表所有行设为该行高" disabled={!inTable} onClick={() => run((r) => setRowHeight(r, rowH, true))}>
+                应用于整表
+              </TB>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5 md:col-span-full">
               <span className="w-12 text-[11px] font-medium text-slate-500">列宽</span>
               <input
                 type="number"
@@ -508,24 +541,41 @@ export function RichEditor({
       </div>
 
       {/* ── 编辑区 ── */}
-      <div
-        ref={editorRef}
-        contentEditable={!readOnly}
-        suppressContentEditableWarning
-        onPaste={onPaste}
-        onKeyUp={() => {
-          const root = editorRef.current
-          if (root) setInTable(!!currentTable(root))
-        }}
-        onMouseUp={() => {
-          const root = editorRef.current
-          if (root) setInTable(!!currentTable(root))
-        }}
-        style={{ minHeight }}
-        className={`px-4 py-3 text-sm leading-relaxed text-slate-800 outline-none focus:ring-2 focus:ring-[var(--brand-ring)] [&_h1]:my-3 [&_h1]:text-center [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:my-2 [&_h2]:text-lg [&_h2]:font-semibold [&_h3]:my-2 [&_h3]:font-semibold [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:my-1.5 [&_table]:my-2 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-400 [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-slate-400 [&_th]:bg-slate-50 [&_th]:px-2 [&_th]:py-1 [&_ul]:ml-5 [&_ul]:list-disc ${
-          readOnly ? 'cursor-not-allowed bg-slate-50' : 'bg-white'
-        }`}
-      />
+      <div className={pageView ? 'bg-slate-100 p-4 sm:p-6' : ''}>
+        <div
+          className={
+            pageView
+              ? 'mx-auto w-full max-w-[794px] bg-white px-5 py-6 text-sm shadow-md ring-1 ring-slate-300 sm:px-[72px] sm:py-14'
+              : ''
+          }
+          style={pageView ? { minHeight } : undefined}
+        >
+          <div
+            ref={editorRef}
+            contentEditable={!readOnly}
+            suppressContentEditableWarning
+            onPaste={onPaste}
+            onKeyUp={() => {
+              const root = editorRef.current
+              if (root) setInTable(!!currentTable(root))
+            }}
+            onMouseUp={() => {
+              const root = editorRef.current
+              if (root) setInTable(!!currentTable(root))
+            }}
+            style={pageView ? undefined : { minHeight }}
+            className={`text-sm leading-relaxed text-slate-800 outline-none focus:ring-2 focus:ring-[var(--brand-ring)] [&_h1]:my-3 [&_h1]:text-center [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:my-2 [&_h2]:text-lg [&_h2]:font-semibold [&_h3]:my-2 [&_h3]:font-semibold [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:my-1.5 [&_table]:my-2 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-400 [&_td]:px-2 [&_td]:py-2 [&_th]:border [&_th]:border-slate-400 [&_th]:bg-slate-50 [&_th]:px-2 [&_th]:py-2 [&_ul]:ml-5 [&_ul]:list-disc ${
+              pageView
+                ? readOnly
+                  ? 'cursor-not-allowed'
+                  : ''
+                : readOnly
+                  ? 'cursor-not-allowed bg-slate-50'
+                  : 'bg-white'
+            } ${pageView ? '' : 'px-4 py-3'}`}
+          />
+        </div>
+      </div>
     </div>
   )
 }
