@@ -42,8 +42,13 @@ export default function Contracts() {
   const [ourEntityFilter, setOurEntityFilter] = useState('all')
   const [amountMin, setAmountMin] = useState('')
   const [amountMax, setAmountMax] = useState('')
+  const [signedAfter, setSignedAfter] = useState('')
+  const [signedBefore, setSignedBefore] = useState('')
+  const [startAfter, setStartAfter] = useState('')
+  const [startBefore, setStartBefore] = useState('')
   const [endBefore, setEndBefore] = useState('')
   const [endAfter, setEndAfter] = useState('')
+  const [autoRenewFilter, setAutoRenewFilter] = useState<'all' | 'yes' | 'no'>('all')
   const [showAdvanced, setShowAdvanced] = useState(false)
 
   // 批量
@@ -88,11 +93,16 @@ export default function Contracts() {
       if (ourEntityFilter !== 'all' && (r.our_entity ?? '') !== ourEntityFilter) return false
       if (amountMin && (r.amount ?? 0) < Number(amountMin)) return false
       if (amountMax && (r.amount ?? 0) > Number(amountMax)) return false
-      if (endBefore && r.end_at && r.end_at > endBefore) return false
+      if (signedAfter && r.signed_at && r.signed_at < signedAfter) return false
+      if (signedBefore && r.signed_at && r.signed_at > signedBefore) return false
+      if (startAfter && r.start_at && r.start_at < startAfter) return false
+      if (startBefore && r.start_at && r.start_at > startBefore) return false
       if (endAfter && r.end_at && r.end_at < endAfter) return false
+      if (endBefore && r.end_at && r.end_at > endBefore) return false
+      if (autoRenewFilter !== 'all' && r.auto_renew !== (autoRenewFilter === 'yes')) return false
       return true
     })
-  }, [rows, q, storeFilter, statusFilter, categoryFilter, tagFilter, ourEntityFilter, amountMin, amountMax, endBefore, endAfter])
+  }, [rows, q, storeFilter, statusFilter, categoryFilter, tagFilter, ourEntityFilter, amountMin, amountMax, signedAfter, signedBefore, startAfter, startBefore, endBefore, endAfter, autoRenewFilter])
 
   // 表格底部统计条
   const stats = useMemo(() => {
@@ -120,7 +130,11 @@ export default function Contracts() {
     categoryFilter !== 'all' ||
     tagFilter !== 'all' ||
     ourEntityFilter !== 'all' ||
-    !!amountMin || !!amountMax || !!endBefore || !!endAfter
+    !!amountMin || !!amountMax ||
+    !!signedAfter || !!signedBefore ||
+    !!startAfter || !!startBefore ||
+    !!endAfter || !!endBefore ||
+    autoRenewFilter !== 'all'
 
   function resetFilters() {
     setQ('')
@@ -131,8 +145,13 @@ export default function Contracts() {
     setOurEntityFilter('all')
     setAmountMin('')
     setAmountMax('')
-    setEndBefore('')
+    setSignedAfter('')
+    setSignedBefore('')
+    setStartAfter('')
+    setStartBefore('')
     setEndAfter('')
+    setEndBefore('')
+    setAutoRenewFilter('all')
     setShowAdvanced(false)
   }
 
@@ -244,18 +263,22 @@ export default function Contracts() {
               <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
             </svg>
             <input
-              className={`${inputCls} !pl-8 w-full sm:w-[220px] sm:shrink-0`}
-              placeholder="搜索名称 / 编号 / 对方 / 门店"
+              className={`${inputCls} !pl-8 w-[170px]`}
+              placeholder="名称/编号/对方/门店"
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
           </div>
           <span className="h-6 w-px bg-slate-200" />
-          <select className={`${inputClsInline} shrink-0`} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)}>
+          <select className={`${inputClsInline} w-[92px] truncate`} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)}>
             {STATUS_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
           </select>
+          <select className={`${inputClsInline} w-[110px] truncate`} value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} title="按类别筛选">
+            <option value="all">全部类别</option>
+            {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+          </select>
           {isHq && (
-            <select className={`${inputClsInline} shrink-0`} value={storeFilter} onChange={(e) => setStoreFilter(e.target.value)}>
+            <select className={`${inputClsInline} w-[120px] truncate`} value={storeFilter} onChange={(e) => setStoreFilter(e.target.value)} title="按门店筛选">
               <option value="all">全部门店</option>
               {stores.map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
@@ -263,7 +286,7 @@ export default function Contracts() {
             </select>
           )}
           <select
-            className={`${inputClsInline} shrink-0 max-w-[180px]`}
+            className={`${inputClsInline} w-[120px] truncate`}
             value={ourEntityFilter}
             onChange={(e) => setOurEntityFilter(e.target.value)}
             title="按我方主体筛选"
@@ -273,8 +296,7 @@ export default function Contracts() {
               <option key={o.name} value={o.name}>{o.name}</option>
             ))}
           </select>
-          <span className="h-6 w-px bg-slate-200" />
-          <div className="ml-auto flex items-center gap-1.5">
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
             <Button variant="ghost" onClick={() => setShowAdvanced((v) => !v)} className={showAdvanced ? 'text-indigo-600' : ''}>
               {showAdvanced ? '收起筛选' : '高级筛选'}
             </Button>
@@ -288,11 +310,11 @@ export default function Contracts() {
         </div>
 
         {showAdvanced && (
-          <div className="mt-3 grid gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Field label="类别">
-              <select className={inputCls} value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
-                <option value="all">全部</option>
-                {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+          <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Field label="我方主体">
+              <select className={inputCls} value={ourEntityFilter} onChange={(e) => setOurEntityFilter(e.target.value)}>
+                <option value="all">全部主体</option>
+                {ourEntities.map((o) => <option key={o.name} value={o.name}>{o.name}</option>)}
               </select>
             </Field>
             <Field label="标签">
@@ -301,16 +323,35 @@ export default function Contracts() {
                 {tags.map((t) => <option key={t.name}>{t.name}</option>)}
               </select>
             </Field>
+            <Field label="自动续约">
+              <select className={inputCls} value={autoRenewFilter} onChange={(e) => setAutoRenewFilter(e.target.value as any)}>
+                <option value="all">全部</option>
+                <option value="yes">是</option>
+                <option value="no">否</option>
+              </select>
+            </Field>
             <Field label="金额区间（元）">
               <div className="flex gap-1">
-                <input className={inputCls} placeholder="最小" value={amountMin} onChange={(e) => setAmountMin(e.target.value)} />
-                <input className={inputCls} placeholder="最大" value={amountMax} onChange={(e) => setAmountMax(e.target.value)} />
+                <input className={`${inputCls} min-w-0`} placeholder="最小" value={amountMin} onChange={(e) => setAmountMin(e.target.value)} />
+                <input className={`${inputCls} min-w-0`} placeholder="最大" value={amountMax} onChange={(e) => setAmountMax(e.target.value)} />
+              </div>
+            </Field>
+            <Field label="签订日期">
+              <div className="flex gap-1">
+                <input type="date" className={`${inputCls} min-w-0 px-2`} value={signedAfter} onChange={(e) => setSignedAfter(e.target.value)} />
+                <input type="date" className={`${inputCls} min-w-0 px-2`} value={signedBefore} onChange={(e) => setSignedBefore(e.target.value)} />
+              </div>
+            </Field>
+            <Field label="生效日期">
+              <div className="flex gap-1">
+                <input type="date" className={`${inputCls} min-w-0 px-2`} value={startAfter} onChange={(e) => setStartAfter(e.target.value)} />
+                <input type="date" className={`${inputCls} min-w-0 px-2`} value={startBefore} onChange={(e) => setStartBefore(e.target.value)} />
               </div>
             </Field>
             <Field label="到期范围">
               <div className="flex gap-1">
-                <input type="date" className={inputCls} value={endAfter} onChange={(e) => setEndAfter(e.target.value)} />
-                <input type="date" className={inputCls} value={endBefore} onChange={(e) => setEndBefore(e.target.value)} />
+                <input type="date" className={`${inputCls} min-w-0 px-2`} value={endAfter} onChange={(e) => setEndAfter(e.target.value)} />
+                <input type="date" className={`${inputCls} min-w-0 px-2`} value={endBefore} onChange={(e) => setEndBefore(e.target.value)} />
               </div>
             </Field>
           </div>

@@ -57,6 +57,17 @@ export default function Dashboard() {
     .sort((a, b) => (a.days_left ?? 0) - (b.days_left ?? 0))
     .slice(0, 8)
 
+  // 近 30 天新增（按录入系统时间 created_at 判断）
+  const DAY = 86_400_000
+  const recentThreshold = Date.now() - 30 * DAY
+  const recentAdded = rows
+    .filter((r) => {
+      const t = new Date(r.created_at).getTime()
+      return !Number.isNaN(t) && t >= recentThreshold
+    })
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 8)
+
   // 状态分布
   const byStatus = ['draft', 'active', 'renewed', 'expired', 'cancelled'].map((s, i) => ({
     name: ({ draft: '草稿', active: '履行中', renewed: '已续签', expired: '已到期', cancelled: '已作废' } as Record<string, string>)[s],
@@ -99,8 +110,9 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
         <Stat label="合同总数" value={String(total)} />
+        <Stat label="近30天新增" value={String(recentAdded.length)} tone={recentAdded.length ? 'active' : 'normal'} />
         <Stat label="30 天内到期" value={String(soon.length)} tone={soon.length ? 'warn' : 'normal'} />
         <Stat label="已过期未处理" value={String(overdue.length)} tone={overdue.length ? 'urgent' : 'normal'} />
         <Stat label="在履行金额" value={formatMoney(amount)} />
@@ -110,7 +122,6 @@ export default function Dashboard() {
         <Card
           title="即将到期"
           extra={<Link to="/reminders" className="text-xs text-slate-500 hover:text-slate-900">全部 →</Link>}
-          className="lg:col-span-2"
         >
           {loading ? (
             <Empty text="加载中…" />
@@ -138,6 +149,39 @@ export default function Dashboard() {
                   </li>
                 )
               })}
+            </ul>
+          )}
+        </Card>
+
+        <Card
+          title="近期新增"
+          extra={<Link to="/contracts" className="text-xs text-slate-500 hover:text-slate-900">全部 →</Link>}
+        >
+          {loading ? (
+            <Empty text="加载中…" />
+          ) : recentAdded.length === 0 ? (
+            <Empty text="近 30 天暂无新增" />
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {recentAdded.map((c) => (
+                <li key={c.id} className="flex items-center gap-3 py-1.5">
+                  <div className="min-w-0 flex-1">
+                    <Link
+                      to={`/contracts/${c.id}`}
+                      className="truncate text-sm text-slate-800 hover:underline"
+                    >
+                      {c.title}
+                    </Link>
+                    <div className="text-xs text-slate-400">
+                      {isHq ? `${c.store_name} · ` : ''}
+                      录入 {c.created_at?.slice(0, 10)}
+                    </div>
+                  </div>
+                  <span className="shrink-0 text-xs font-medium text-slate-500">
+                    {formatMoney(c.amount ?? 0)}
+                  </span>
+                </li>
+              ))}
             </ul>
           )}
         </Card>
@@ -253,12 +297,13 @@ function Stat({
 }: {
   label: string
   value: string
-  tone?: 'normal' | 'warn' | 'urgent'
+  tone?: 'normal' | 'warn' | 'urgent' | 'active'
 }) {
   const map = {
     normal: { text: 'text-slate-900', border: 'border-l-slate-300' },
     warn: { text: 'text-amber-600', border: 'border-l-amber-400' },
     urgent: { text: 'text-red-600', border: 'border-l-red-400' },
+    active: { text: 'text-indigo-600', border: 'border-l-indigo-400' },
   }[tone]
   return (
     <div className={`rounded-xl border border-slate-200 border-l-4 bg-white px-4 py-3.5 ${map.border}`}>

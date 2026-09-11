@@ -5,7 +5,7 @@
  *  - 同源静态资源（JS/CSS/图片/字体）：stale-while-revalidate
  *  - 跨域请求（Supabase / COS API 等）不经过缓存，直接走网络
  */
-const CACHE = 'hetong-cache-v1'
+const CACHE = 'hetong-cache-%SW_VERSION%'
 const CORE = [
   './index.html',
   './manifest.webmanifest',
@@ -15,9 +15,14 @@ const CORE = [
 ]
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE).then((c) => c.addAll(CORE)).then(() => self.skipWaiting())
-  )
+  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(CORE)))
+})
+
+// 收到页面"立即刷新"指令后再跳过等待，接管控制权（配合新版本提示使用）
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting()
+  }
 })
 
 self.addEventListener('activate', (event) => {

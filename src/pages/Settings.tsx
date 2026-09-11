@@ -4,6 +4,7 @@ import { Button, Card, Empty, Field, Modal, inputCls } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { useAuth } from '../hooks/useAuth'
 import { checkPassword } from '../lib/password'
+import { checkForUpdate } from '../lib/pwa'
 import type {
   NotifChannel,
   NotifChannelConfig,
@@ -44,6 +45,7 @@ export default function Settings() {
   const [ruleModal, setRuleModal] = useState<ReminderRule | 'new' | null>(null)
   const [entities, setEntities] = useState<OurEntity[]>([])
   const [entityName, setEntityName] = useState('')
+  const [checkingUpdate, setCheckingUpdate] = useState(false)
 
   const load = useCallback(async () => {
     const [{ data: c }, { data: r }] = await Promise.all([
@@ -256,6 +258,32 @@ export default function Settings() {
         </div>
       </Card>
       )}
+
+      <Card title="关于" extra={<span className="text-xs text-slate-400">PWA 版本与更新</span>}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm text-slate-600">
+            当前版本：<span className="font-mono text-slate-900">{__APP_VERSION__}</span>
+            <span className="ml-2 text-xs text-slate-400">（通过「立即刷新」应用的新版本会显示在右下角提示）</span>
+          </div>
+          <Button
+            variant="primary"
+            disabled={checkingUpdate}
+            onClick={async () => {
+              setCheckingUpdate(true)
+              try {
+                await checkForUpdate()
+                push('已检查更新，若有新版本会自动提示', 'ok')
+              } catch (e) {
+                push(e instanceof Error ? e.message : '检查失败', 'err')
+              } finally {
+                setCheckingUpdate(false)
+              }
+            }}
+          >
+            {checkingUpdate ? '检查中…' : '检查更新'}
+          </Button>
+        </div>
+      </Card>
 
       {passwordOpen && <PasswordModal onClose={() => setPasswordOpen(false)} />}
       {channelModal && (

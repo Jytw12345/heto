@@ -398,7 +398,7 @@ export default function ContractForm({ open, contract, stores, onClose, onSaved,
               className={inputCls}
               value={form.title}
               onChange={(e) => set('title', e.target.value)}
-              placeholder="如：万达广场商铺租赁合同"
+              placeholder="例如：XXX印刷制作合同、软件服务合同"
             />
           </Field>
           <Field label="合同编号">
