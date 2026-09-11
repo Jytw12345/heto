@@ -29,6 +29,15 @@ const CHANNEL_DOC: Record<NotifChannelConfig['kind'], string> = {
   email: '邮件提醒（需在 Edge Function 配置 RESEND_API_KEY）',
 }
 
+// 提醒规则「渠道」枚举（NotifChannel）→ 中文名
+const REMIND_CH_LABEL: Record<string, string> = {
+  inapp: '站内',
+  email: '邮件',
+  wecom: '企业微信',
+  dingtalk: '钉钉',
+  feishu: '飞书',
+}
+
 export default function Settings() {
   const { user, profile, refreshProfile, can, isHq } = useAuth()
   const { push } = useToast()
@@ -176,7 +185,8 @@ export default function Settings() {
             </ul>
           )}
           <p className="mt-3 text-xs text-slate-400">
-            到期提醒会按合同「提醒渠道」+ 此处渠道配置推送，门店专用渠道只推本店，全公司渠道推全店。
+            这里配置群 / webhook 的推送目标：全公司渠道推所有门店，门店专用渠道只推本店。
+            是否推送、走哪些渠道、提前几天，由下面「提醒规则」里勾选的渠道决定。
           </p>
         </Card>
       )}
@@ -201,7 +211,8 @@ export default function Settings() {
                       {r.store_id ? '门店规则' : '全公司'} · {r.category || '全类别'}
                     </div>
                     <div className="text-xs text-slate-400">
-                      提前 {r.lead_days.join(' / ')} 天 · 渠道 {r.channels.join(' / ')}
+                      提前 {r.lead_days.join(' / ')} 天 · 渠道{' '}
+                      {r.channels.map((c) => REMIND_CH_LABEL[c] ?? c).join(' / ')}
                       {!r.active && ' · 已停用'}
                     </div>
                   </div>
@@ -213,7 +224,8 @@ export default function Settings() {
             </ul>
           )}
           <p className="mt-3 text-xs text-slate-400">
-            优先级：合同自身设置 → 门店+类别规则 → 全公司+类别规则 → 合同默认 [30,7,1]。
+            命中规则时按规则的天数与渠道推送，越具体越优先：门店+类别 → 门店 → 全公司+类别 → 全公司。
+            都没命中时按合同自带的提前天数，渠道走站内 + 邮件。
           </p>
         </Card>
       )}
@@ -629,7 +641,10 @@ function RuleModal({
           </div>
         </Field>
 
-        <Field label="推送渠道">
+        <Field
+          label="推送渠道"
+          hint="勾选「企业微信 / 钉钉 / 飞书」才会推到上方「推送渠道」里配置的群"
+        >
           <div className="flex flex-wrap gap-2">
             {CH_OPTIONS.map((c) => {
               const on = form.channels.includes(c)
@@ -649,14 +664,17 @@ function RuleModal({
                       : 'border-slate-300 text-slate-600 hover:bg-slate-50'
                   }`}
                 >
-                  {c === 'inapp' ? '站内' : c === 'email' ? '邮件' : c === 'wecom' ? '企业微信' : c === 'dingtalk' ? '钉钉' : '飞书'}
+                  {REMIND_CH_LABEL[c] ?? c}
                 </button>
               )
             })}
           </div>
         </Field>
 
-        <Field label="提醒文案模板" hint="支持变量：{{title}} {{counterparty}} {{days}} {{store}} {{end_at}}">
+        <Field
+          label="提醒文案模板"
+          hint="支持变量：{{title}} {{counterparty}} {{days}} {{store}} {{end_at}} {{contract_no}}"
+        >
           <textarea
             rows={3}
             className={inputCls}
