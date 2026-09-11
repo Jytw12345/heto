@@ -67,6 +67,7 @@ const RESOURCE_LABEL: Record<string, string> = {
   store: '门店',
   channel: '通知渠道',
   reminder: '提醒规则',
+  reminder_rule: '提醒规则',
   position_template: '职务模板',
   audit: '审计日志',
   cos: '对象存储',
@@ -142,7 +143,11 @@ export default function Audit() {
       }
       ;((data ?? []) as unknown as T[]).forEach((row) => {
         const item = formatter(row)
-        if (item) names[item.key] = item.name
+        if (item) {
+          names[item.key] = item.name
+          // reminder_rules 表同时服务 legacy 'reminder' 与新建 'reminder_rule' 两种 resource 值
+          if (table === 'reminder_rules') names[resKey('reminder_rule', row.id as string)] = item.name
+        }
       })
     }
 
@@ -194,7 +199,7 @@ export default function Audit() {
       ),
       fetchInBatches(
         'reminder_rules',
-        idsByType['reminder'] ?? [],
+        [...(idsByType['reminder'] ?? []), ...(idsByType['reminder_rule'] ?? [])],
         'id, category, lead_days',
         (row: { id: string; category: string | null; lead_days: number[] | null }) => ({
           key: resKey('reminder', row.id),
