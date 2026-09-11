@@ -1,0 +1,30 @@
+name: Daily Contract Reminder
+
+# 每天定时调用 Supabase 的 daily-reminder 函数，推送合同到期提醒
+on:
+  schedule:
+    # GitHub Actions 的 cron 走 UTC；'0 1 * * *' = 北京时间每天 09:00
+    - cron: '0 1 * * *'
+  # 允许在 Actions 页面手动点一下就跑，方便随时测试
+  workflow_dispatch:
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call daily-reminder
+        run: |
+          code=$(curl -sS -o resp.json -w '%{http_code}' -X POST \
+            "$REMINDER_ENDPOINT" \
+            -H "Authorization: Bearer $CRON_SECRET")
+          echo "HTTP $code"
+          echo "--- response ---"
+          cat resp.json
+          echo
+          if [ "$code" != "200" ]; then
+            echo "::error::daily-reminder 返回非 200"
+            exit 1
+          fi
+        env:
+          REMINDER_ENDPOINT: ${{ secrets.REMINDER_ENDPOINT }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
