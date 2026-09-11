@@ -149,9 +149,9 @@ export default function PWAInstallPrompt() {
       )}
 
       {showInstall && (
-        <div className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-lg rounded-xl border border-indigo-200 bg-white p-4 shadow-lg sm:bottom-6 sm:left-auto sm:right-6 sm:w-80 sm:p-3">
+        <div className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-lg rounded-xl border border-[var(--brand)]/20 bg-white p-4 shadow-lg sm:bottom-6 sm:left-auto sm:right-6 sm:w-80 sm:p-3">
           <div className="flex items-start gap-3">
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-indigo-600 text-sm font-medium text-white">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[var(--brand)] text-sm font-medium text-white">
               合
             </div>
             <div className="flex-1">
@@ -165,7 +165,7 @@ export default function PWAInstallPrompt() {
                 {deferred && (
                   <button
                     onClick={handleInstall}
-                    className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
+                    className="rounded-lg bg-[var(--brand)] px-3 py-1.5 text-xs font-medium text-white hover:bg-[var(--brand-strong)]"
                   >
                     立即安装
                   </button>

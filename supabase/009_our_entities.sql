@@ -7,6 +7,7 @@
 create table if not exists public.our_entities (
   id         uuid primary key default gen_random_uuid(),
   name       text not null unique,
+  short_name text,  -- 手动维护的简写名；为空时前端回退自动简写
   created_at timestamptz not null default now()
 );
 

@@ -3,11 +3,39 @@ import { Link } from 'react-router-dom'
 import { Bar, BarChart, Cell, Label, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
-import { Card, Empty, Pill } from '../components/ui'
+import { Card, Empty, Pill, StatCard } from '../components/ui'
 import { dueLevel, formatBytes, formatMoney } from '../lib/format'
 import type { Contract } from '../types'
 
 const STATUS_COLORS = ['#64748b', '#059669', '#2563eb', '#dc2626', '#9ca3af']
+
+const S_ICONS = {
+  files: (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" />
+    </svg>
+  ),
+  trend: (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 7 13.5 15.5 8.5 10.5 2 17" /><path d="M16 7h6v6" />
+    </svg>
+  ),
+  clock: (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
+    </svg>
+  ),
+  alert: (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /><path d="M12 9v4" /><path d="M12 17h.01" />
+    </svg>
+  ),
+  card: (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="5" width="20" height="14" rx="3" /><path d="M2 10h20" /><path d="M6 15h4" />
+    </svg>
+  ),
+}
 
 export default function Dashboard() {
   const { isHq, profile } = useAuth()
@@ -111,11 +139,22 @@ export default function Dashboard() {
       )}
 
       <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-        <Stat label="合同总数" value={String(total)} />
-        <Stat label="近30天新增" value={String(recentAdded.length)} tone={recentAdded.length ? 'active' : 'normal'} />
-        <Stat label="30 天内到期" value={String(soon.length)} tone={soon.length ? 'warn' : 'normal'} />
-        <Stat label="已过期未处理" value={String(overdue.length)} tone={overdue.length ? 'urgent' : 'normal'} />
-        <Stat label="在履行金额" value={formatMoney(amount)} />
+        <StatCard label="合同总数" value={String(total)} icon={S_ICONS.files} tone="indigo" />
+        <StatCard
+          label="近30天新增"
+          value={String(recentAdded.length)}
+          icon={S_ICONS.trend}
+          tone={recentAdded.length ? 'emerald' : 'slate'}
+          trend={recentAdded.length ? `+${recentAdded.length}` : undefined}
+        />
+        <StatCard label="30 天内到期" value={String(soon.length)} icon={S_ICONS.clock} tone={soon.length ? 'amber' : 'slate'} />
+        <StatCard
+          label="已过期未处理"
+          value={String(overdue.length)}
+          icon={S_ICONS.alert}
+          tone={overdue.length ? 'red' : 'slate'}
+        />
+        <StatCard label="在履行金额" value={formatMoney(amount)} icon={S_ICONS.card} tone="slate" />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -200,7 +239,7 @@ export default function Dashboard() {
                     </div>
                     <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
                       <div
-                        className="h-full bg-indigo-600"
+                        className="h-full bg-[var(--brand)]"
                         style={{
                           width: `${Math.max(4, (s.bytes / storeUsage[0].bytes) * 100)}%`,
                         }}
@@ -270,7 +309,7 @@ export default function Dashboard() {
                 <XAxis dataKey="name" tick={{ fontSize: 10 }} />
                 <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
                 <Tooltip />
-                <Bar dataKey="value" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="value" fill="var(--brand)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </Card>
@@ -280,35 +319,12 @@ export default function Dashboard() {
                 <XAxis dataKey="name" tick={{ fontSize: 10 }} />
                 <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
                 <Tooltip />
-                <Bar dataKey="value" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="value" fill="var(--brand)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </Card>
         </div>
       )}
-    </div>
-  )
-}
-
-function Stat({
-  label,
-  value,
-  tone = 'normal',
-}: {
-  label: string
-  value: string
-  tone?: 'normal' | 'warn' | 'urgent' | 'active'
-}) {
-  const map = {
-    normal: { text: 'text-slate-900', border: 'border-l-slate-300' },
-    warn: { text: 'text-amber-600', border: 'border-l-amber-400' },
-    urgent: { text: 'text-red-600', border: 'border-l-red-400' },
-    active: { text: 'text-indigo-600', border: 'border-l-indigo-400' },
-  }[tone]
-  return (
-    <div className={`rounded-xl border border-slate-200 border-l-4 bg-white px-4 py-3.5 ${map.border}`}>
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className={`mt-1 text-xl font-medium ${map.text}`}>{value}</div>
     </div>
   )
 }

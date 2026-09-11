@@ -2,6 +2,47 @@
 @tailwind components;
 @tailwind utilities;
 
+:root,
+html[data-theme='orange'] {
+  --brand: #f97316;
+  --brand-strong: #ea580c;
+  --brand-darkest: #7c2d12;
+  --brand-soft: rgba(249, 115, 22, 0.14);
+  --brand-ring: rgba(249, 115, 22, 0.45);
+}
+
+html[data-theme='violet'] {
+  --brand: #7c3aed;
+  --brand-strong: #6d28d9;
+  --brand-darkest: #4c1d95;
+  --brand-soft: rgba(124, 58, 237, 0.14);
+  --brand-ring: rgba(124, 58, 237, 0.45);
+}
+
+html[data-theme='blue'] {
+  --brand: #2563eb;
+  --brand-strong: #1d4ed8;
+  --brand-darkest: #1e3a8a;
+  --brand-soft: rgba(37, 99, 235, 0.14);
+  --brand-ring: rgba(37, 99, 235, 0.45);
+}
+
+html[data-theme='emerald'] {
+  --brand: #059669;
+  --brand-strong: #047857;
+  --brand-darkest: #064e3b;
+  --brand-soft: rgba(5, 150, 105, 0.14);
+  --brand-ring: rgba(5, 150, 105, 0.45);
+}
+
+html[data-theme='slate'] {
+  --brand: #475569;
+  --brand-strong: #334155;
+  --brand-darkest: #0f172a;
+  --brand-soft: rgba(71, 85, 105, 0.14);
+  --brand-ring: rgba(71, 85, 105, 0.45);
+}
+
 html {
   -webkit-text-size-adjust: 100%;
 }
@@ -9,13 +50,42 @@ html {
 body {
   @apply bg-slate-50 text-slate-900 antialiased;
   font-feature-settings: 'tnum' 1;
+  text-rendering: optimizeLegibility;
+}
+
+/* 全局细微径向渐变底，营造层次而非单调灰底。使用 var(--brand-soft) 让背景色随主题切换 */
+.app-bg {
+  background-color: #f8fafc;
+  background-image:
+    radial-gradient(1100px 520px at 100% -8%, var(--brand-soft), transparent 60%),
+    radial-gradient(900px 480px at -8% 108%, rgba(148, 163, 184, 0.04), transparent 55%);
+  background-attachment: fixed;
 }
 
 ::selection {
-  background: rgba(79, 70, 229, 0.18);
+  background: var(--brand-soft);
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }
 
 * {
   scrollbar-width: thin;
   scrollbar-color: #cbd5e1 transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }

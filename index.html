@@ -3,7 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#4F46E5" />
+    <meta name="theme-color" content="#F97316" />
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('app-theme') || 'orange'
+          var ok = ['orange', 'violet', 'blue', 'emerald', 'slate']
+          if (!ok.includes(t)) t = 'orange'
+          document.documentElement.dataset.theme = t
+          var m = document.querySelector('meta[name="theme-color"]')
+          if (m) {
+            m.content = { orange: '#F97316', violet: '#7C3AED', blue: '#2563EB', emerald: '#059669', slate: '#475569' }[t]
+          }
+        } catch (e) {}
+      })()
+    </script>
     <link rel="manifest" href="%BASE_URL%manifest.webmanifest" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />

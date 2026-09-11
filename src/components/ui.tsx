@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { type PointerEvent as ReactPointerEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 import { STATUS_LABEL, STATUS_TONE, type ContractStatus } from '../types'
 
 export function Card({
@@ -40,7 +40,7 @@ export function Modal({
 }) {
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 sm:items-center">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 backdrop-blur-sm sm:items-center">
       <div
         className={`w-full ${wide ? 'max-w-4xl' : 'max-w-lg'} rounded-xl bg-white shadow-xl`}
       >
@@ -60,17 +60,172 @@ export function Modal({
   )
 }
 
+/**
+ * 可拖动 / 可缩放 / 可最大化的浮层弹窗。
+ * - 拖动：按住标题栏移动（双击标题栏切换最大化）
+ * - 缩放：拖右下角手柄（带最小尺寸限制）
+ * - 关闭：右上角 ✕ 或 Esc
+ * 打开时会自动居中并按视口收敛初始尺寸。
+ */
+export function FloatingModal({
+  open,
+  title,
+  onClose,
+  children,
+  initialWidth = 920,
+  initialHeight = 660,
+  minWidth = 400,
+  minHeight = 320,
+}: {
+  open: boolean
+  title: string
+  onClose: () => void
+  children: ReactNode
+  initialWidth?: number
+  initialHeight?: number
+  minWidth?: number
+  minHeight?: number
+}) {
+  const [size, setSize] = useState({ w: initialWidth, h: initialHeight })
+  const [pos, setPos] = useState({ x: 40, y: 40 })
+  const [maximized, setMaximized] = useState(false)
+  const dragRef = useRef<{ dx: number; dy: number } | null>(null)
+  const resizeRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null)
+
+  // 打开时居中 + 按视口收敛尺寸
+  useEffect(() => {
+    if (!open) return
+    const w = Math.min(initialWidth, window.innerWidth - 32)
+    const h = Math.min(initialHeight, window.innerHeight - 32)
+    setSize({ w, h })
+    setPos({
+      x: Math.max(16, (window.innerWidth - w) / 2),
+      y: Math.max(16, (window.innerHeight - h) / 2),
+    })
+    setMaximized(false)
+  }, [open, initialWidth, initialHeight])
+
+  // Esc 关闭
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+
+  function startDrag(e: ReactPointerEvent) {
+    if (maximized) return
+    e.currentTarget.setPointerCapture(e.pointerId)
+    dragRef.current = { dx: e.clientX - pos.x, dy: e.clientY - pos.y }
+  }
+  function moveDrag(e: ReactPointerEvent) {
+    if (!dragRef.current) return
+    const x = Math.min(Math.max(-size.w + 120, e.clientX - dragRef.current.dx), window.innerWidth - 80)
+    const y = Math.min(Math.max(0, e.clientY - dragRef.current.dy), window.innerHeight - 44)
+    setPos({ x, y })
+  }
+  function endDrag(e: ReactPointerEvent) {
+    dragRef.current = null
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    } catch {
+      /* 忽略：指针可能已释放 */
+    }
+  }
+
+  function startResize(e: ReactPointerEvent) {
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    resizeRef.current = { x: e.clientX, y: e.clientY, w: size.w, h: size.h }
+  }
+  function moveResize(e: ReactPointerEvent) {
+    if (!resizeRef.current) return
+    const w = Math.max(minWidth, Math.min(window.innerWidth, resizeRef.current.w + (e.clientX - resizeRef.current.x)))
+    const h = Math.max(minHeight, Math.min(window.innerHeight, resizeRef.current.h + (e.clientY - resizeRef.current.y)))
+    setSize({ w, h })
+  }
+  function endResize(e: ReactPointerEvent) {
+    resizeRef.current = null
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    } catch {
+      /* 忽略 */
+    }
+  }
+
+  if (!open) return null
+
+  const box = maximized
+    ? { left: 12, top: 12, width: window.innerWidth - 24, height: window.innerHeight - 24 }
+    : { left: pos.x, top: pos.y, width: size.w, height: size.h }
+
+  return (
+    <div className="fixed inset-0 z-50">
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
+      <div
+        className="absolute flex flex-col overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/5"
+        style={box}
+      >
+        <header
+          onPointerDown={startDrag}
+          onPointerMove={moveDrag}
+          onPointerUp={endDrag}
+          onDoubleClick={() => setMaximized((m) => !m)}
+          className="flex shrink-0 cursor-move touch-none select-none items-center justify-between border-b border-slate-100 px-4 py-2.5"
+        >
+          <h3 className="truncate pr-3 text-sm font-medium text-slate-900">{title}</h3>
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              onClick={() => setMaximized((m) => !m)}
+              className="rounded-md px-2 py-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              title={maximized ? '还原' : '最大化'}
+              aria-label={maximized ? '还原' : '最大化'}
+            >
+              {maximized ? '❐' : '⛶'}
+            </button>
+            <button
+              onClick={onClose}
+              className="rounded-md px-2 py-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              aria-label="关闭"
+            >
+              ✕
+            </button>
+          </div>
+        </header>
+        <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+        {!maximized && (
+          <div
+            onPointerDown={startResize}
+            onPointerMove={moveResize}
+            onPointerUp={endResize}
+            className="absolute bottom-0 right-0 z-10 h-4 w-4 cursor-nwse-resize touch-none"
+            title="拖动调整大小"
+          >
+            <svg viewBox="0 0 16 16" className="h-4 w-4 text-slate-300">
+              <path d="M15 6 L6 15 M15 11 L11 15" stroke="currentColor" strokeWidth="1.5" fill="none" />
+            </svg>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function Field({
   label,
   children,
   hint,
+  className,
 }: {
   label: string
   children: ReactNode
   hint?: string
+  className?: string
 }) {
   return (
-    <label className="block">
+    <label className={`block ${className || ''}`}>
       <span className="mb-1 block text-xs font-medium text-slate-600">{label}</span>
       {children}
       {hint && <span className="mt-1 block text-xs text-slate-400">{hint}</span>}
@@ -79,11 +234,11 @@ export function Field({
 }
 
 export const inputCls =
-  'w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30'
+  'w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-ring)]'
 
 /** 同行内联版（去掉 w-full），用于 flex 行里的 <select>/<input>，让它们按内容自适应宽度而不是各占一行 */
 export const inputClsInline =
-  'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30'
+  'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-ring)]'
 
 export function Button({
   children,
@@ -101,8 +256,8 @@ export function Button({
   className?: string
 }) {
   const styles: Record<string, string> = {
-    default: 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50',
-    primary: 'bg-indigo-600 text-white hover:bg-indigo-700',
+    default: 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-400',
+    primary: 'bg-[var(--brand)] text-white shadow-sm shadow-[var(--brand-soft)] hover:bg-[var(--brand-strong)]',
     danger: 'border border-red-200 bg-white text-red-600 hover:bg-red-50',
     ghost: 'text-slate-600 hover:bg-slate-100',
   }
@@ -111,14 +266,23 @@ export function Button({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`rounded-lg px-3.5 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${styles[variant]} ${className}`}
+      className={`rounded-lg px-3.5 py-2 text-sm font-medium transition active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-ring)] ${styles[variant]} ${className}`}
     >
       {children}
     </button>
   )
 }
 
-export function Empty({ text, icon }: { text: string; icon?: ReactNode }) {
+export function Empty({ text, icon, compact = false }: { text: string; icon?: ReactNode; compact?: boolean }) {
+  // 紧凑态：单行矮占位，用于卡片本身高度有限、不想被空态撑高的场景
+  if (compact) {
+    return (
+      <div className="flex items-center justify-center gap-2 py-6 text-center text-sm text-slate-400">
+        {icon}
+        <span>{text}</span>
+      </div>
+    )
+  }
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
       {icon ?? <DefaultEmptyArt />}
@@ -208,7 +372,7 @@ export function StatCard({
   trend?: string
 }) {
   const palette: Record<string, { bg: string; ring: string; text: string; icon: string }> = {
-    indigo:  { bg: 'from-indigo-50/60 to-white',  ring: 'ring-indigo-100',  text: 'text-indigo-700',  icon: 'bg-indigo-100 text-indigo-600' },
+    indigo:  { bg: 'from-[var(--brand)]/10 to-white',  ring: 'ring-[var(--brand)]/15',  text: 'text-[var(--brand-darkest)]',  icon: 'bg-[var(--brand)]/12 text-[var(--brand-strong)]' },
     emerald: { bg: 'from-emerald-50/70 to-white', ring: 'ring-emerald-100', text: 'text-emerald-700', icon: 'bg-emerald-100 text-emerald-600' },
     amber:   { bg: 'from-amber-50/70 to-white',   ring: 'ring-amber-100',   text: 'text-amber-700',   icon: 'bg-amber-100 text-amber-600' },
     red:     { bg: 'from-red-50/70 to-white',     ring: 'ring-red-100',     text: 'text-red-700',     icon: 'bg-red-100 text-red-600' },
@@ -252,7 +416,7 @@ export function FileGlyph({ mime }: { mime?: string | null }) {
   const isImg = m.startsWith('image/')
   const label = isImg ? 'IMG' : m.includes('pdf') ? 'PDF' : m.includes('word') || m.includes('doc') ? 'DOC' : 'FILE'
   const color = isImg
-    ? 'bg-indigo-50 text-indigo-600'
+    ? 'bg-[var(--brand)]/10 text-[var(--brand-strong)]'
     : m.includes('pdf')
       ? 'bg-red-50 text-red-600'
       : 'bg-slate-100 text-slate-500'

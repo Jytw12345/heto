@@ -168,7 +168,7 @@ export default function Admin() {
                   <span className="text-sm text-slate-800">{t.name}</span>
                   <span
                     className={`ml-2 rounded-full px-2 py-0.5 text-[11px] ${
-                      t.scope === 'hq' ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-600'
+                      t.scope === 'hq' ? 'bg-[var(--brand)]/10 text-[var(--brand-strong)]' : 'bg-slate-100 text-slate-600'
                     }`}
                   >
                     {t.scope === 'hq' ? '全门店' : '本门店'}

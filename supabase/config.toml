@@ -1,0 +1,19 @@
+# Supabase 函数配置
+#
+# 作用两点：
+# 1) 固定每个函数的 JWT 校验行为（config.toml 是部署的「唯一事实来源」，
+#    未在这里声明的函数，批量部署时可能被丢弃或退回默认校验）
+# 2) 避免每次部署都要手工加 --no-verify-jwt
+
+# 定时提醒：由 cron 调用，拿的是自定义 CRON_SECRET，不是用户 JWT。
+# 必须关掉平台 JWT 校验，否则网关在函数代码执行前就返回 401。
+# 安全性由函数内部的 CRON_SECRET 判断保证。
+[functions.daily-reminder]
+verify_jwt = false
+
+# 以下两个由前端用登录态 access_token 调用，保持默认校验（平台先挡一层）
+[functions.cos-sts]
+verify_jwt = true
+
+[functions.cos-signed-url]
+verify_jwt = true

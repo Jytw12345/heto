@@ -252,7 +252,7 @@ export default function FileUploader({
         <select
           value={kind}
           onChange={(e) => setKind(e.target.value as FileKind)}
-          className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 outline-none focus:border-indigo-400"
+          className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 outline-none focus:border-[var(--brand)]"
         >
           {FILE_KIND_ORDER.map((k) => (
             <option key={k} value={k}>
@@ -276,7 +276,7 @@ export default function FileUploader({
         }}
         onClick={() => inputRef.current?.click()}
         className={`cursor-pointer rounded-xl border-2 border-dashed px-4 py-8 text-center transition ${
-          dragging ? 'border-indigo-400 bg-indigo-50' : 'border-slate-200 hover:border-indigo-300'
+          dragging ? 'border-[var(--brand)] bg-[var(--brand)]/5' : 'border-slate-200 hover:border-[var(--brand)]/60'
         }`}
       >
         <p className="text-sm text-slate-700">点击选择，或把扫描件拖进来</p>
@@ -317,7 +317,7 @@ export default function FileUploader({
                 <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
                   <div
                     className={`h-full transition-all ${
-                      t.status === 'error' ? 'bg-red-500' : t.status === 'done' ? 'bg-emerald-500' : 'bg-indigo-600'
+                      t.status === 'error' ? 'bg-red-500' : t.status === 'done' ? 'bg-emerald-500' : 'bg-[var(--brand)]'
                     }`}
                     style={{ width: `${Math.round(t.pct * 100)}%` }}
                   />
@@ -327,7 +327,7 @@ export default function FileUploader({
                 {t.status === 'done' ? (
                   '完成'
                 ) : t.status === 'error' ? (
-                  <button onClick={() => run(t)} className="font-medium text-indigo-600 hover:underline">
+                  <button onClick={() => run(t)} className="font-medium text-[var(--brand)] hover:underline">
                     {t.phase === 'save' ? '重试写入' : '重试'}
                   </button>
                 ) : t.status === 'saving' ? (

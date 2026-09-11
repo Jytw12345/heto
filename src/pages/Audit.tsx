@@ -1,15 +1,17 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { Card, Empty, Field, inputCls } from '../components/ui'
+import { Card, Empty, inputClsInline } from '../components/ui'
+import { useStores } from '../hooks/useStores'
 import { formatDate } from '../lib/format'
 import type { AuditLog } from '../types'
 
-const ACTION_GROUPS: { label: string; match: RegExp }[] = [
-  { label: '登录 / 账号', match: /^(login|logout|profile\.|password|position)/ },
-  { label: '合同', match: /^contract\./ },
-  { label: '文件', match: /^(file|cos)/ },
-  { label: '门店 / 渠道 / 提醒', match: /^(store|channel|reminder)/ },
-  { label: '审计 / 系统', match: /^audit\.|\.system/ },
+// label 用于列表分组标题；short 用于筛选下拉，尽量短以省空间
+const ACTION_GROUPS: { label: string; short: string; match: RegExp }[] = [
+  { label: '登录 / 账号', short: '账号', match: /^(login|logout|profile\.|password|position)/ },
+  { label: '合同', short: '合同', match: /^contract\./ },
+  { label: '文件', short: '文件', match: /^(file|cos)/ },
+  { label: '门店 / 渠道 / 提醒', short: '门店渠道', match: /^(store|channel|reminder)/ },
+  { label: '审计 / 系统', short: '系统', match: /^audit\.|\.system/ },
 ]
 
 // 动作类型 → 中文名
@@ -116,8 +118,15 @@ export default function Audit() {
   const [resourceNames, setResourceNames] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const stores = useStores()
   const [q, setQ] = useState('')
-  const [actionFilter, setActionFilter] = useState('')
+  const [actionGroup, setActionGroup] = useState('')
+  const [resourceFilter, setResourceFilter] = useState('')
+  const [actorFilter, setActorFilter] = useState('')
+  const [storeFilter, setStoreFilter] = useState('')
+  const [range, setRange] = useState('all')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
 
   const loadResourceNames = useCallback(async (list: AuditLog[]) => {
     const idsByType: Record<string, string[]> = {}
@@ -272,9 +281,84 @@ export default function Audit() {
     }
   }, [load])
 
+  // 时间范围 -> [起, 止] 毫秒区间（含端点）
+  const rangeBounds = useMemo((): [number, number] | null => {
+    const now = new Date()
+    if (range === 'today') {
+      const s = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      return [s.getTime(), now.getTime()]
+    }
+    if (range === '7d') return [now.getTime() - 7 * 864e5, now.getTime()]
+    if (range === '30d') return [now.getTime() - 30 * 864e5, now.getTime()]
+    if (range === 'custom') {
+      const s = fromDate ? new Date(`${fromDate}T00:00:00`).getTime() : -Infinity
+      const e = toDate ? new Date(`${toDate}T23:59:59.999`).getTime() : Infinity
+      return [s, e]
+    }
+    return null
+  }, [range, fromDate, toDate])
+
+  // 操作人下拉：从已加载日志里归纳（含"系统"）
+  const actorOptions = useMemo(() => {
+    const m = new Map<string, string>()
+    let hasSystem = false
+    for (const l of logs) {
+      if (l.actor_id) m.set(l.actor_id, actorMap[l.actor_id] || l.actor_email || '未知用户')
+      else hasSystem = true
+    }
+    const arr = Array.from(m, ([value, label]) => ({ value, label })).sort((a, b) =>
+      a.label.localeCompare(b.label, 'zh'),
+    )
+    if (hasSystem) arr.push({ value: '__system__', label: '系统' })
+    return arr
+  }, [logs, actorMap])
+
+  // 资源类型下拉：仅列出日志中实际出现过的资源
+  const resourceOptions = useMemo(() => {
+    const s = new Set<string>()
+    for (const l of logs) if (l.resource) s.add(l.resource)
+    return Array.from(s)
+      .map((v) => ({ value: v, label: translateResource(v) }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'zh'))
+  }, [logs])
+
+  // 门店下拉：仅列出日志中出现过的门店
+  const storeOptions = useMemo(
+    () => stores.filter((s) => logs.some((l) => l.store_id === s.id)).map((s) => ({ value: s.id, label: s.name })),
+    [stores, logs],
+  )
+
+  const hasFilter =
+    !!q || !!actionGroup || !!resourceFilter || !!actorFilter || !!storeFilter || range !== 'all'
+
+  function clearAll() {
+    setQ('')
+    setActionGroup('')
+    setResourceFilter('')
+    setActorFilter('')
+    setStoreFilter('')
+    setRange('all')
+    setFromDate('')
+    setToDate('')
+  }
+
   const filtered = useMemo(() => {
     return logs.filter((l) => {
-      if (actionFilter && !l.action.startsWith(actionFilter)) return false
+      if (actionGroup) {
+        const g = ACTION_GROUPS.find((x) => x.label === actionGroup)
+        if (!g || !g.match.test(l.action)) return false
+      }
+      if (resourceFilter && l.resource !== resourceFilter) return false
+      if (actorFilter === '__system__') {
+        if (l.actor_id) return false
+      } else if (actorFilter && l.actor_id !== actorFilter) {
+        return false
+      }
+      if (storeFilter && l.store_id !== storeFilter) return false
+      if (rangeBounds) {
+        const t = new Date(l.created_at).getTime()
+        if (t < rangeBounds[0] || t > rangeBounds[1]) return false
+      }
       if (q) {
         const s = q.toLowerCase()
         const actionZh = translateAction(l.action).toLowerCase()
@@ -290,14 +374,15 @@ export default function Audit() {
             (l.resource ?? '').toLowerCase().includes(s) ||
             resourceName.includes(s) ||
             actor.includes(s) ||
-            email.includes(s)
+            email.includes(s) ||
+            (l.ip ?? '').toLowerCase().includes(s)
           )
         )
           return false
       }
       return true
     })
-  }, [logs, actionFilter, q, actorMap, resourceNames])
+  }, [logs, actionGroup, resourceFilter, actorFilter, storeFilter, rangeBounds, q, actorMap, resourceNames])
 
   // 按 group 分组
   const grouped: Record<string, AuditLog[]> = {}
@@ -352,31 +437,105 @@ export default function Audit() {
           </button>
         }
       >
-        <div className="mb-3 grid gap-2 sm:grid-cols-3">
-          <Field label="搜索">
-            <input
-              className={inputCls}
-              placeholder="操作 / 人名 / 资源"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-            />
-          </Field>
-          <Field label="动作类型">
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <input
+            className={inputClsInline + ' w-48'}
+            placeholder="搜索 操作 / 人名 / 资源 / IP"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+          <select
+            className={inputClsInline + ' w-32'}
+            title="动作类型"
+            value={actionGroup}
+            onChange={(e) => setActionGroup(e.target.value)}
+          >
+            <option value="">全部动作</option>
+            {ACTION_GROUPS.map((g) => (
+              <option key={g.label} value={g.label}>
+                {g.short}
+              </option>
+            ))}
+          </select>
+          <select
+            className={inputClsInline + ' w-32'}
+            title="资源类型"
+            value={resourceFilter}
+            onChange={(e) => setResourceFilter(e.target.value)}
+          >
+            <option value="">全部资源</option>
+            {resourceOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <select
+            className={inputClsInline + ' w-32'}
+            title="操作人"
+            value={actorFilter}
+            onChange={(e) => setActorFilter(e.target.value)}
+          >
+            <option value="">全部操作人</option>
+            {actorOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          {storeOptions.length > 1 && (
             <select
-              className={inputCls}
-              value={actionFilter}
-              onChange={(e) => setActionFilter(e.target.value)}
+              className={inputClsInline + ' w-32'}
+              title="门店"
+              value={storeFilter}
+              onChange={(e) => setStoreFilter(e.target.value)}
             >
-              <option value="">全部</option>
-              <option value="contract.">合同</option>
-              <option value="file.">文件</option>
-              <option value="profile.">账号</option>
-              <option value="store.">门店</option>
-              <option value="channel.">渠道</option>
-              <option value="reminder">提醒</option>
-              <option value="audit.">审计</option>
+              <option value="">全部门店</option>
+              {storeOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
             </select>
-          </Field>
+          )}
+          <select
+            className={inputClsInline + ' w-28'}
+            title="时间范围"
+            value={range}
+            onChange={(e) => setRange(e.target.value)}
+          >
+            <option value="all">全部时间</option>
+            <option value="today">今天</option>
+            <option value="7d">近7天</option>
+            <option value="30d">近30天</option>
+            <option value="custom">自定义</option>
+          </select>
+          {range === 'custom' && (
+            <>
+              <input
+                type="date"
+                className={inputClsInline + ' w-36'}
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+              />
+              <span className="text-xs text-slate-400">至</span>
+              <input
+                type="date"
+                className={inputClsInline + ' w-36'}
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+              />
+            </>
+          )}
+          <span className="ml-auto text-xs text-slate-400">
+            共 {filtered.length} 条
+            {filtered.length !== logs.length && ` / 全部 ${logs.length} 条`}
+          </span>
+          {hasFilter && (
+            <button onClick={clearAll} className="text-xs text-slate-500 hover:text-slate-800 hover:underline">
+              清空筛选
+            </button>
+          )}
         </div>
 
         {loading ? (

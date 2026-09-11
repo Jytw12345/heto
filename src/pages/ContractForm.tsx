@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { uploadFile, validateFile } from '../lib/storage'
-import { formatBytes } from '../lib/format'
+import { formatBytes, shortEntity } from '../lib/format'
 import { Button, Field, Modal, inputCls } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { useAuth } from '../hooks/useAuth'
@@ -273,7 +273,10 @@ export default function ContractForm({ open, contract, stores, onClose, onSaved,
       if (form.our_entity.trim()) {
         const exists = ourEntities.some((o) => o.name === form.our_entity.trim())
         if (!exists) {
-          await supabase.from('our_entities').insert({ name: form.our_entity.trim() }).then(() => {})
+          await supabase
+            .from('our_entities')
+            .insert({ name: form.our_entity.trim(), short_name: shortEntity(form.our_entity.trim()) })
+            .then(() => {})
         }
       }
       const payload = {
@@ -592,7 +595,7 @@ export default function ContractForm({ open, contract, stores, onClose, onSaved,
                 <select
                   value={fileKind}
                   onChange={(e) => setFileKind(e.target.value as FileKind)}
-                  className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 outline-none focus:border-indigo-400"
+                  className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 outline-none focus:border-[var(--brand)]"
                 >
                   {FILE_KIND_ORDER.map((k) => (
                     <option key={k} value={k}>
@@ -708,7 +711,7 @@ function DateField({ value, onChange }: { value: string; onChange: (v: string) =
       <button
         type="button"
         onClick={open}
-        className={`flex w-full items-center justify-between rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-left text-sm transition hover:border-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 focus:outline-none ${
+        className={`flex w-full items-center justify-between rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-left text-sm transition hover:border-slate-400 focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand-ring)] focus:outline-none ${
           value ? 'text-slate-800' : 'text-slate-400'
         }`}
       >

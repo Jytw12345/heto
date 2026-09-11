@@ -29,6 +29,8 @@ export interface Store {
 export interface OurEntity {
   id: string
   name: string
+  /** 手动维护的简写名，用于合同列表紧凑展示；为空时回退到自动简写 */
+  short_name: string | null
   created_at?: string
 }
 

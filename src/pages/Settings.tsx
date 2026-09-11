@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { Button, Card, Empty, Field, Modal, inputCls } from '../components/ui'
+import { Button, Card, Empty, Field, Modal, inputCls, inputClsInline } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { useAuth } from '../hooks/useAuth'
 import { checkPassword } from '../lib/password'
 import { checkForUpdate } from '../lib/pwa'
+import { shortEntity } from '../lib/format'
 import type {
   NotifChannel,
   NotifChannelConfig,
@@ -54,6 +55,9 @@ export default function Settings() {
   const [ruleModal, setRuleModal] = useState<ReminderRule | 'new' | null>(null)
   const [entities, setEntities] = useState<OurEntity[]>([])
   const [entityName, setEntityName] = useState('')
+  const [entityShort, setEntityShort] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editShort, setEditShort] = useState('')
   const [checkingUpdate, setCheckingUpdate] = useState(false)
 
   const load = useCallback(async () => {
@@ -101,9 +105,12 @@ export default function Settings() {
   async function addEntity() {
     const n = entityName.trim()
     if (!n) return
-    const { error } = await supabase.from('our_entities').insert({ name: n })
+    const { error } = await supabase
+      .from('our_entities')
+      .insert({ name: n, short_name: entityShort.trim() || null })
     if (error) return push(error.message, 'err')
     setEntityName('')
+    setEntityShort('')
     load()
   }
   async function delEntity(id: string) {
@@ -111,191 +118,261 @@ export default function Settings() {
     if (error) return push(error.message, 'err')
     load()
   }
+  async function saveEntityShort(id: string) {
+    const { error } = await supabase
+      .from('our_entities')
+      .update({ short_name: editShort.trim() || null })
+      .eq('id', id)
+    if (error) return push(error.message, 'err')
+    setEditingId(null)
+    load()
+  }
 
   return (
-    <div className="space-y-4">
-      <Card title="个人资料">
-        <form onSubmit={saveProfile} className="grid max-w-xl sm:max-w-4xl gap-4 grid-cols-2 sm:grid-cols-5">
-          <Field label="登录邮箱">
-            <input className={inputCls} value={user?.email ?? ''} disabled />
-          </Field>
-          <Field label="姓名">
-            <input
-              className={inputCls}
-              value={profileForm.full_name}
-              onChange={(e) => setProfileForm({ ...profileForm, full_name: e.target.value })}
-            />
-          </Field>
-          <Field label="手机">
-            <input
-              className={inputCls}
-              value={profileForm.phone}
-              onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
-            />
-          </Field>
-          <Field label="微信">
-            <input
-              className={inputCls}
-              value={profileForm.wechat}
-              onChange={(e) => setProfileForm({ ...profileForm, wechat: e.target.value })}
-            />
-          </Field>
-          <div className="col-span-2 sm:col-span-1 flex flex-wrap items-end justify-end gap-2">
-            <Button onClick={() => setPasswordOpen(true)}>修改密码</Button>
-            <Button type="submit" variant="primary">保存</Button>
-          </div>
-        </form>
-      </Card>
-
-      {can('channel.manage') && (
-        <Card
-          title="推送渠道"
-          extra={
-            <Button variant="primary" onClick={() => setChannelModal('new')}>
-              + 新增渠道
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+      {/* 左栏：核心设置 */}
+      <div className="space-y-4 xl:col-span-7">
+        <Card title="个人资料">
+          <form onSubmit={saveProfile} className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <label className="flex min-w-0 flex-1 items-center gap-2">
+              <span className="shrink-0 text-sm text-slate-500">登录邮箱</span>
+              <input className={inputClsInline + ' min-w-0 flex-1'} value={user?.email ?? ''} disabled />
+            </label>
+            <label className="flex items-center gap-2">
+              <span className="shrink-0 text-sm text-slate-500">姓名</span>
+              <input
+                className={inputClsInline + ' w-28'}
+                value={profileForm.full_name}
+                onChange={(e) => setProfileForm({ ...profileForm, full_name: e.target.value })}
+              />
+            </label>
+            <label className="flex items-center gap-2">
+              <span className="shrink-0 text-sm text-slate-500">手机</span>
+              <input
+                className={inputClsInline + ' w-36'}
+                value={profileForm.phone}
+                onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
+              />
+            </label>
+            <Button type="button" variant="ghost" onClick={() => setPasswordOpen(true)}>
+              修改密码
             </Button>
-          }
-        >
-          {channels.length === 0 ? (
-            <Empty text="还没有配置推送渠道" />
-          ) : (
-            <ul className="divide-y divide-slate-100">
-              {channels.map((c) => (
-                <li key={c.id} className="flex items-center gap-3 py-1.5">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 text-sm text-slate-800">
-                      {c.name}
-                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500">
+            <Button type="submit" variant="primary">
+              保存
+            </Button>
+          </form>
+        </Card>
+
+        {can('channel.manage') && (
+          <Card
+            title="推送渠道"
+            extra={
+              <Button variant="primary" onClick={() => setChannelModal('new')}>
+                + 新增渠道
+              </Button>
+            }
+          >
+            {channels.length === 0 ? (
+              <Empty text="还没有配置推送渠道" />
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {channels.map((c) => (
+                  <li key={c.id} className="group flex items-center gap-3 py-2">
+                    <div className="flex min-w-0 flex-1 items-center gap-2 text-sm text-slate-800">
+                      <span className="shrink-0">{c.name}</span>
+                      <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500">
                         {CHANNEL_LABEL[c.kind]}
                       </span>
+                      <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500">
+                        {c.store_id ? '门店专用' : '全公司'}
+                      </span>
                       {!c.active && (
-                        <span className="text-xs text-slate-400">已停用</span>
+                        <span className="shrink-0 text-xs text-slate-400">已停用</span>
                       )}
+                      <span className="ml-auto min-w-0 truncate font-mono text-xs text-slate-400" title={c.url}>
+                        {c.url}
+                      </span>
                     </div>
-                    <div className="truncate text-xs text-slate-400">
-                      {c.store_id ? '门店专用' : '全公司'} ·{' '}
-                      <span className="font-mono">{c.url.slice(0, 60)}{c.url.length > 60 && '…'}</span>
-                    </div>
-                  </div>
-                  <Button variant="ghost" onClick={() => setChannelModal(c)}>
-                    编辑
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <p className="mt-3 text-xs text-slate-400">
-            这里配置群 / webhook 的推送目标：全公司渠道推所有门店，门店专用渠道只推本店。
-            是否推送、走哪些渠道、提前几天，由下面「提醒规则」里勾选的渠道决定。
-          </p>
-        </Card>
-      )}
-
-      {can('reminder.manage') && (
-        <Card
-          title="提醒规则"
-          extra={
-            <Button variant="primary" onClick={() => setRuleModal('new')}>
-              + 新增规则
-            </Button>
-          }
-        >
-          {rules.length === 0 ? (
-            <Empty text="暂无自定义规则，按合同本身的提前天数提醒" />
-          ) : (
-            <ul className="divide-y divide-slate-100">
-              {rules.map((r) => (
-                <li key={r.id} className="flex items-center gap-3 py-1.5">
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm text-slate-800">
-                      {r.store_id ? '门店规则' : '全公司'} · {r.category || '全类别'}
-                    </div>
-                    <div className="text-xs text-slate-400">
-                      提前 {r.lead_days.join(' / ')} 天 · 渠道{' '}
-                      {r.channels.map((c) => REMIND_CH_LABEL[c] ?? c).join(' / ')}
-                      {!r.active && ' · 已停用'}
-                    </div>
-                  </div>
-                  <Button variant="ghost" onClick={() => setRuleModal(r)}>
-                    编辑
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <p className="mt-3 text-xs text-slate-400">
-            命中规则时按规则的天数与渠道推送，越具体越优先：门店+类别 → 门店 → 全公司+类别 → 全公司。
-            都没命中时按合同自带的提前天数，渠道走站内 + 邮件。
-          </p>
-        </Card>
-      )}
-
-      {isHq && (
-        <Card title="我方主体" extra={<span className="text-xs text-slate-400">合同「我方主体」可选列表，可增删</span>}>
-          {entities.length === 0 ? (
-          <Empty text="还没有我方主体" />
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {entities.map((o) => (
-              <span
-                key={o.id}
-                className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700"
-              >
-                {o.name}
-                <button
-                  type="button"
-                  onClick={() => delEntity(o.id)}
-                  className="text-slate-400 hover:text-red-500"
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
+                    <Button variant="ghost" className="shrink-0 opacity-60 group-hover:opacity-100" onClick={() => setChannelModal(c)}>
+                      编辑
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="mt-2 text-xs leading-relaxed text-slate-400">
+              全公司渠道推所有门店，门店专用渠道只推本店。是否推送、走哪些渠道、提前几天，由「提醒规则」决定。
+            </p>
+          </Card>
         )}
-        <div className="mt-3 flex gap-2">
-          <input
-            className={inputCls}
-            value={entityName}
-            onChange={(e) => setEntityName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                addEntity()
-              }
-            }}
-            placeholder="新增我方主体，如：济宁市万紫千红文化传媒有限公司"
-          />
-          <Button variant="primary" onClick={addEntity}>添加</Button>
-        </div>
-      </Card>
-      )}
 
-      <Card title="关于" extra={<span className="text-xs text-slate-400">PWA 版本与更新</span>}>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-sm text-slate-600">
-            当前版本：<span className="font-mono text-slate-900">{__APP_VERSION__}</span>
-            <span className="ml-2 text-xs text-slate-400">（通过「立即刷新」应用的新版本会显示在右下角提示）</span>
-          </div>
-          <Button
-            variant="primary"
-            disabled={checkingUpdate}
-            onClick={async () => {
-              setCheckingUpdate(true)
-              try {
-                await checkForUpdate()
-                push('已检查更新，若有新版本会自动提示', 'ok')
-              } catch (e) {
-                push(e instanceof Error ? e.message : '检查失败', 'err')
-              } finally {
-                setCheckingUpdate(false)
-              }
-            }}
+        {can('reminder.manage') && (
+          <Card
+            title="提醒规则"
+            extra={
+              <Button variant="primary" onClick={() => setRuleModal('new')}>
+                + 新增规则
+              </Button>
+            }
           >
-            {checkingUpdate ? '检查中…' : '检查更新'}
-          </Button>
-        </div>
-      </Card>
+            {rules.length === 0 ? (
+              <Empty text="暂无自定义规则，按合同本身的提前天数提醒" />
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {rules.map((r) => (
+                  <li key={r.id} className="group flex items-center gap-3 py-2">
+                    <div className="flex min-w-0 flex-1 items-center gap-2 text-sm text-slate-800">
+                      <span className="shrink-0">
+                        {r.store_id ? '门店规则' : '全公司'} · {r.category || '全类别'}
+                      </span>
+                      <span className="min-w-0 truncate text-xs text-slate-400">
+                        提前 {r.lead_days.join(' / ')} 天 · 渠道{' '}
+                        {r.channels.map((c) => REMIND_CH_LABEL[c] ?? c).join(' / ')}
+                      </span>
+                      {!r.active && <span className="shrink-0 text-xs text-slate-400">· 已停用</span>}
+                    </div>
+                    <Button variant="ghost" className="shrink-0 opacity-60 group-hover:opacity-100" onClick={() => setRuleModal(r)}>
+                      编辑
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="mt-2 text-xs leading-relaxed text-slate-400">
+              命中规则时按规则的天数与渠道推送，越具体越优先：门店+类别 → 门店 → 全公司+类别 → 全公司。
+              都没命中时按合同自带的提前天数，渠道走站内 + 邮件。
+            </p>
+          </Card>
+        )}
+      </div>
+
+      {/* 右栏：辅助信息 */}
+      <div className="space-y-4 xl:col-span-5">
+        {isHq && (
+          <Card
+            title="我方主体"
+            extra={<span className="text-xs text-slate-400">简写用于合同列表紧凑展示</span>}
+          >
+            {entities.length === 0 ? (
+              <Empty text="还没有我方主体" />
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {entities.map((o) => (
+                  <span
+                    key={o.id}
+                    className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700"
+                  >
+                    {editingId === o.id ? (
+                      <>
+                        <input
+                          autoFocus
+                          value={editShort}
+                          onChange={(e) => setEditShort(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveEntityShort(o.id)
+                            if (e.key === 'Escape') setEditingId(null)
+                          }}
+                          className="w-16 rounded bg-white px-1 py-0.5 text-xs outline-none ring-1 ring-[var(--brand)]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => saveEntityShort(o.id)}
+                          className="text-[var(--brand-strong)] hover:underline"
+                        >
+                          存
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingId(null)}
+                          className="text-slate-400 hover:text-slate-600"
+                        >
+                          ×
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span
+                          className="cursor-pointer hover:text-[var(--brand-strong)]"
+                          title={`${o.name}（点击编辑简写）`}
+                          onClick={() => {
+                            setEditingId(o.id)
+                            setEditShort(o.short_name ?? shortEntity(o.name))
+                          }}
+                        >
+                          {o.short_name ? o.short_name : shortEntity(o.name)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => delEntity(o.id)}
+                          className="text-slate-400 hover:text-red-500"
+                          title="删除该主体"
+                        >
+                          ×
+                        </button>
+                      </>
+                    )}
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="mt-3 flex flex-wrap gap-2">
+              <input
+                className={inputCls + ' flex-1 min-w-[180px]'}
+                value={entityName}
+                onChange={(e) => setEntityName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    addEntity()
+                  }
+                }}
+                placeholder="全称，如：济宁市万紫千红文化传媒有限公司"
+              />
+              <input
+                className={inputClsInline + ' w-28'}
+                value={entityShort}
+                onChange={(e) => setEntityShort(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    addEntity()
+                  }
+                }}
+                placeholder="简写（可选）"
+              />
+              <Button variant="primary" onClick={addEntity}>
+                添加
+              </Button>
+            </div>
+          </Card>
+        )}
+
+        <Card title="关于" extra={<span className="text-xs text-slate-400">PWA 版本与更新</span>}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm text-slate-600">
+              当前版本：<span className="font-mono text-slate-900">{__APP_VERSION__}</span>
+              <span className="ml-2 text-xs text-slate-400">（新版本会右下角提示）</span>
+            </div>
+            <Button
+              variant="primary"
+              disabled={checkingUpdate}
+              onClick={async () => {
+                setCheckingUpdate(true)
+                try {
+                  await checkForUpdate()
+                  push('已检查更新，若有新版本会自动提示', 'ok')
+                } catch (e) {
+                  push(e instanceof Error ? e.message : '检查失败', 'err')
+                } finally {
+                  setCheckingUpdate(false)
+                }
+              }}
+            >
+              {checkingUpdate ? '检查中…' : '检查更新'}
+            </Button>
+          </div>
+        </Card>
+      </div>
 
       {passwordOpen && <PasswordModal onClose={() => setPasswordOpen(false)} />}
       {channelModal && (

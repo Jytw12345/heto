@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { createViewUrl, downloadFile, removeFile } from '../lib/storage'
 import { useAuth } from '../hooks/useAuth'
 import { useStores } from '../hooks/useStores'
-import { Button, Card, Empty, FileGlyph, Modal, Pill, StatusBadge } from '../components/ui'
+import { Button, Card, Empty, FileGlyph, FloatingModal, Pill, StatusBadge } from '../components/ui'
 import { useToast } from '../components/Toast'
 import FileUploader from '../components/FileUploader'
 import ContractForm from './ContractForm'
@@ -200,7 +200,7 @@ export default function ContractDetail() {
             {showAmount && c.amount != null && (
               <div className="text-left leading-none sm:text-right">
                 <div className="text-[11px] uppercase tracking-wide text-slate-400">合同金额</div>
-                <div className="mt-1 text-3xl font-semibold text-indigo-600 tabular-nums">
+                <div className="mt-1 text-3xl font-semibold text-[var(--brand)] tabular-nums">
                   {formatMoney(c.amount)}
                 </div>
               </div>
@@ -227,136 +227,140 @@ export default function ContractDetail() {
         </div>
       )}
 
-      {/* 基本信息卡 - 4列×3行 网格（合同金额已在 hero 顶部，不重复） */}
-      <Card title="基本信息" className="print:break-inside-avoid">
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm sm:grid-cols-4">
-          <Field k="合同编号">{c.contract_no || '—'}</Field>
-          <Field k="类别">{c.category || '—'}</Field>
-          <Field k="对方公司">{c.counterparty || '—'}</Field>
-          <Field k="我方主体">{c.our_entity || '—'}</Field>
-          <Field k="签订日期">{formatDate(c.signed_at)}</Field>
-          <Field k="生效日期">{formatDate(c.start_at)}</Field>
-          <Field k="到期日期">{formatDate(c.end_at)}</Field>
-          <Field k="自动续约">{c.auto_renew ? '是' : '否'}</Field>
-          <Field k="提前提醒" wide>
-            {c.remind_days?.length ? (
-              <div className="flex flex-wrap gap-1.5">
-                {c.remind_days.map((n) => (
-                  <span
-                    key={n}
-                    className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-amber-200"
-                  >
-                    {n}天前
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <span className="text-slate-400">未设置</span>
-            )}
-          </Field>
-          <Field k="创建人">
-            <span className="font-medium text-slate-800">{creatorLabel}</span>
-          </Field>
-        </dl>
-        {c.note && (
-          <div className="mt-5 border-t border-slate-100 pt-3 print:border-slate-200">
-            <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">备注</div>
-            <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700">
-              {c.note}
-            </p>
-          </div>
-        )}
-      </Card>
-
-      {/* 底部双栏 50:50：状态历史 + 扫描件 */}
+      {/* 主体双栏：左右各占一半 —— 左「基本信息 + 状态历史」，右「扫描件与附件」吸顶 */}
       <div className="grid gap-4 md:grid-cols-2">
-        <Card title="状态历史" className="print:break-inside-avoid">
-          {history.length === 0 ? (
-            <Empty text="暂无状态变更记录" />
-          ) : (
-            <ol className="relative space-y-3 pl-5 before:absolute before:bottom-1 before:left-1.5 before:top-1 before:w-px before:bg-slate-200">
-              {history.map((h, i) => (
-                <li key={i} className="relative">
-                  <span className="absolute -left-5 top-1.5 h-2.5 w-2.5 rounded-full bg-white ring-2 ring-indigo-400" />
-                  <div className="font-mono text-[11px] text-slate-400">
-                    {formatDate(h.changed_at, true)}
-                  </div>
-                  <div className="mt-0.5 text-sm text-slate-800">
-                    {h.from_status
-                      ? `${STATUS_LABEL[h.from_status as keyof typeof STATUS_LABEL] ?? h.from_status} → `
-                      : ''}
-                    <span className="font-medium">
-                      {STATUS_LABEL[h.to_status as keyof typeof STATUS_LABEL] ?? h.to_status}
-                    </span>
-                  </div>
-                  <div className="mt-0.5 text-xs text-slate-500">
-                    操作人：{h.actor_email || 'system'}
-                    {h.reason && <span className="ml-1">· 备注：{h.reason}</span>}
-                  </div>
-                </li>
-              ))}
-            </ol>
-          )}
-        </Card>
+        <div className="space-y-4">
+          {/* 基本信息：标签在左、值在右的紧凑两列（合同金额已在 hero 顶部，不重复） */}
+          <Card title="基本信息" className="print:break-inside-avoid">
+            <dl className="grid grid-cols-1 gap-x-8 gap-y-1.5 text-sm sm:grid-cols-2">
+              <Field k="合同编号">{c.contract_no || '—'}</Field>
+              <Field k="类别">{c.category || '—'}</Field>
+              <Field k="对方公司">{c.counterparty || '—'}</Field>
+              <Field k="我方主体">{c.our_entity || '—'}</Field>
+              <Field k="签订日期">{formatDate(c.signed_at)}</Field>
+              <Field k="生效日期">{formatDate(c.start_at)}</Field>
+              <Field k="到期日期">{formatDate(c.end_at)}</Field>
+              <Field k="自动续约">{c.auto_renew ? '是' : '否'}</Field>
+              <Field k="提前提醒">
+                {c.remind_days?.length ? (
+                  <span className="flex flex-wrap gap-1.5">
+                    {c.remind_days.map((n) => (
+                      <span
+                        key={n}
+                        className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-amber-200"
+                      >
+                        {n}天前
+                      </span>
+                    ))}
+                  </span>
+                ) : (
+                  <span className="text-slate-400">未设置</span>
+                )}
+              </Field>
+              <Field k="创建人">
+                <span className="font-medium text-slate-800">{creatorLabel}</span>
+              </Field>
+            </dl>
+            {c.note && (
+              <div className="mt-4 border-t border-slate-100 pt-3 print:border-slate-200">
+                <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">备注</div>
+                <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700">
+                  {c.note}
+                </p>
+              </div>
+            )}
+          </Card>
 
-        <Card
-          title="扫描件与附件"
-          extra={
-            <div className="flex items-center gap-3 print:hidden">
-              <span className="text-xs text-slate-400">
-                {files.length} 个 · {formatBytes(totalSize)}
-              </span>
-              {files.length > 0 && (
-                <button onClick={downloadAll} className="text-xs text-slate-600 hover:underline">
-                  一键下载全部
-                </button>
-              )}
-            </div>
-          }
-          className="print:break-inside-avoid"
-        >
-          <div className="print:hidden">
-            <FileUploader storeId={c.store_id} contractId={c.id} onUploaded={loadFiles} />
-          </div>
-
-          <div className="mt-3">
-            {files.length === 0 ? (
-              <Empty text="还没有上传扫描件" />
+          <Card title="状态历史" className="print:break-inside-avoid">
+            {history.length === 0 ? (
+              <Empty text="暂无状态变更记录" compact />
             ) : (
-              <ul className="space-y-2">
-                {files.map((f) => (
-                  <li
-                    key={f.id}
-                    className="flex items-center gap-3 rounded-lg border border-slate-200 p-2.5 transition hover:border-indigo-300 hover:bg-indigo-50/40 print:hover:bg-transparent"
-                  >
-                    <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md bg-slate-100">
-                      <FileGlyph mime={f.mime_type} />
+              <ol className="relative space-y-3 pl-5 before:absolute before:bottom-1 before:left-1.5 before:top-1 before:w-px before:bg-slate-200">
+                {history.map((h, i) => (
+                  <li key={i} className="relative">
+                    <span className="absolute -left-5 top-1.5 h-2.5 w-2.5 rounded-full bg-white ring-2 ring-[var(--brand)]" />
+                    <div className="font-mono text-[11px] text-slate-400">
+                      {formatDate(h.changed_at, true)}
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm text-slate-800">{f.file_name}</div>
-                      <div className="text-xs text-slate-400">
-                        {formatBytes(f.size_bytes)} · {formatDate(f.created_at)}
-                      </div>
+                    <div className="mt-0.5 text-sm text-slate-800">
+                      {h.from_status
+                        ? `${STATUS_LABEL[h.from_status as keyof typeof STATUS_LABEL] ?? h.from_status} → `
+                        : ''}
+                      <span className="font-medium">
+                        {STATUS_LABEL[h.to_status as keyof typeof STATUS_LABEL] ?? h.to_status}
+                      </span>
                     </div>
-                    <div className="flex shrink-0 gap-1 print:hidden">
-                      <Button variant="ghost" onClick={() => openPreview(f)} disabled={busyId === f.id}>
-                        预览
-                      </Button>
-                      <Button variant="ghost" onClick={() => handleDownload(f)} disabled={busyId === f.id}>
-                        下载
-                      </Button>
-                      {can('file.delete') && (
-                        <Button variant="danger" onClick={() => handleDelete(f)} disabled={busyId === f.id}>
-                          删除
-                        </Button>
-                      )}
+                    <div className="mt-0.5 text-xs text-slate-500">
+                      操作人：{h.actor_email || 'system'}
+                      {h.reason && <span className="ml-1">· 备注：{h.reason}</span>}
                     </div>
                   </li>
                 ))}
-              </ul>
+              </ol>
             )}
-          </div>
-        </Card>
+          </Card>
+        </div>
+
+        <div>
+          <Card
+            title="扫描件与附件"
+            extra={
+              <div className="flex items-center gap-3 print:hidden">
+                <span className="text-xs text-slate-400">
+                  {files.length} 个 · {formatBytes(totalSize)}
+                </span>
+                {files.length > 0 && (
+                  <button onClick={downloadAll} className="text-xs text-slate-600 hover:underline">
+                    一键下载全部
+                  </button>
+                )}
+              </div>
+            }
+            className="print:break-inside-avoid lg:sticky lg:top-4 print:static"
+          >
+            <div className="print:hidden">
+              <FileUploader storeId={c.store_id} contractId={c.id} onUploaded={loadFiles} />
+            </div>
+
+            <div className="mt-3">
+              {files.length === 0 ? (
+                <Empty text="还没有上传扫描件" compact />
+              ) : (
+                <ul className="space-y-2">
+                  {files.map((f) => (
+                    <li
+                      key={f.id}
+                      className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-slate-200 p-2.5 transition hover:border-[var(--brand)]/40 hover:bg-[var(--brand)]/5 print:hover:bg-transparent"
+                    >
+                      <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md bg-slate-100">
+                        <FileGlyph mime={f.mime_type} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm text-slate-800">{f.file_name}</div>
+                        <div className="text-xs text-slate-400">
+                          {formatBytes(f.size_bytes)} · {formatDate(f.created_at)}
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 gap-1 print:hidden">
+                        <Button variant="ghost" onClick={() => openPreview(f)} disabled={busyId === f.id}>
+                          预览
+                        </Button>
+                        <Button variant="ghost" onClick={() => handleDownload(f)} disabled={busyId === f.id}>
+                          下载
+                        </Button>
+                        {can('file.delete') && (
+                          <Button variant="danger" onClick={() => handleDelete(f)} disabled={busyId === f.id}>
+                            删除
+                          </Button>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </Card>
+        </div>
       </div>
 
       <ContractForm
@@ -380,37 +384,39 @@ export default function ContractDetail() {
         onAfterCreate={(id) => { setRenewOpen(false); navigate(`/contracts/${id}`) }}
       />
 
-      <Modal
+      <FloatingModal
         open={!!preview}
         title={preview?.name ?? ''}
         onClose={() => {
           if (preview?.url) URL.revokeObjectURL(preview.url)
           setPreview(null)
         }}
-        wide
       >
         {preview && (
-          <div className="space-y-3">
+          <div className="flex min-h-0 flex-1 flex-col bg-slate-50">
             {preview.mime.startsWith('image/') ? (
-              <img src={preview.url} alt={preview.name} className="mx-auto max-h-[70vh] rounded-lg" />
+              <div className="min-h-0 flex-1 overflow-auto p-2">
+                <img src={preview.url} alt={preview.name} className="mx-auto max-h-full object-contain" />
+              </div>
             ) : (
-              <iframe src={preview.url} className="h-[70vh] w-full rounded-lg border border-slate-200" />
+              <iframe src={preview.url} className="h-full w-full border-0 bg-white" />
             )}
-            <p className="text-center text-xs text-slate-400">
+            <p className="shrink-0 border-t border-slate-100 bg-white px-3 py-1.5 text-center text-xs text-slate-400">
               临时签名 URL，1 小时后失效；原文件始终保存在 COS 私有桶中
             </p>
           </div>
         )}
-      </Modal>
+      </FloatingModal>
     </div>
   )
 }
 
-function Field({ k, children, wide }: { k: string; children: React.ReactNode; wide?: boolean }) {
+/** 基本信息行：标签在左固定宽、值在右自适应，单行占高更紧凑 */
+function Field({ k, children }: { k: string; children: React.ReactNode }) {
   return (
-    <div className={wide ? 'col-span-2' : undefined}>
-      <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{k}</dt>
-      <dd className="mt-1 break-words text-sm text-slate-800">{children}</dd>
+    <div className="flex items-baseline gap-2 py-0.5">
+      <dt className="w-16 shrink-0 text-[13px] text-slate-400">{k}</dt>
+      <dd className="min-w-0 flex-1 break-words text-[13px] text-slate-800">{children}</dd>
     </div>
   )
 }

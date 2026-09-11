@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import * as XLSX from 'xlsx'
-import { Button, Card, Empty, Field, Modal, Pill, Spinner, StatCard, StatusBadge, inputCls, inputClsInline } from '../components/ui'
+import { Button, Card, Empty, Field, FileGlyph, FloatingModal, Modal, Pill, Spinner, StatCard, StatusBadge, inputCls, inputClsInline } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { useAuth } from '../hooks/useAuth'
 import ContractForm from './ContractForm'
 import { useStores } from '../hooks/useStores'
-import { daysLeft, dueLevel, formatDate, formatMoney } from '../lib/format'
-import { CATEGORIES, STATUS_LABEL, type Contract, type ContractStatus } from '../types'
+import { daysLeft, dueLevel, formatBytes, formatDate, formatMoney, shortEntity } from '../lib/format'
+import { CATEGORIES, STATUS_LABEL, type Contract, type ContractFile, type ContractStatus } from '../types'
+import { createViewUrl, downloadFile } from '../lib/storage'
 
 const STATUS_OPTIONS: { v: ContractStatus | 'all'; l: string }[] = [
   { v: 'all', l: '全部' },
@@ -31,7 +32,7 @@ export default function Contracts() {
   const [formOpen, setFormOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<Contract | null>(null)
   const [tags, setTags] = useState<{ name: string }[]>([])
-  const [ourEntities, setOurEntities] = useState<{ name: string }[]>([])
+  const [ourEntities, setOurEntities] = useState<{ name: string; short_name: string | null }[]>([])
 
   // 筛选
   const [q, setQ] = useState('')
@@ -55,16 +56,23 @@ export default function Contracts() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [batchOpen, setBatchOpen] = useState(false)
 
+  // 行内附件查看
+  const [attContract, setAttContract] = useState<Contract | null>(null)
+  const [attFiles, setAttFiles] = useState<ContractFile[]>([])
+  const [attLoading, setAttLoading] = useState(false)
+  const [attBusy, setAttBusy] = useState<string | null>(null)
+  const [attPreview, setAttPreview] = useState<{ url: string; name: string; mime: string } | null>(null)
+
   const load = useCallback(async () => {
     setLoading(true)
     const [{ data }, { data: ts }, { data: oe }] = await Promise.all([
       supabase.from('v_contracts').select('*').order('end_at', { ascending: true, nullsFirst: false }),
       supabase.from('contract_tags').select('name').order('name'),
-      supabase.from('our_entities').select('name').order('name'),
+      supabase.from('our_entities').select('name, short_name').order('name'),
     ])
     setRows((data as Contract[]) ?? [])
     setTags((ts as { name: string }[]) ?? [])
-    setOurEntities((oe as { name: string }[]) ?? [])
+    setOurEntities((oe as { name: string; short_name: string | null }[]) ?? [])
     setLoading(false)
   }, [])
 
@@ -103,6 +111,13 @@ export default function Contracts() {
       return true
     })
   }, [rows, q, storeFilter, statusFilter, categoryFilter, tagFilter, ourEntityFilter, amountMin, amountMax, signedAfter, signedBefore, startAfter, startBefore, endBefore, endAfter, autoRenewFilter])
+
+  // 我方主体名称 → 手动简写名 映射，供表格紧凑展示
+  const ourEntityShortMap = useMemo(() => {
+    const m = new Map<string, string | null>()
+    for (const e of ourEntities) m.set(e.name, e.short_name)
+    return m
+  }, [ourEntities])
 
   // 表格底部统计条
   const stats = useMemo(() => {
@@ -156,8 +171,9 @@ export default function Contracts() {
   }
 
   function exportExcel() {
+    const rows = selected.size > 0 ? filtered.filter((r) => selected.has(r.id)) : filtered
     const ws = XLSX.utils.json_to_sheet(
-      filtered.map((r) => ({
+      rows.map((r) => ({
         合同名称: r.title,
         编号: r.contract_no ?? '',
         门店: r.store_name ?? '',
@@ -183,7 +199,8 @@ export default function Contracts() {
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, '合同清单')
     XLSX.writeFile(wb, `contracts-${new Date().toISOString().slice(0, 10)}.xlsx`)
-    supabase.rpc('write_audit', { p_action: 'contract.export', p_resource: 'contract', p_payload: { count: filtered.length } })
+    push(`已导出 ${rows.length} 条合同`, 'ok')
+    supabase.rpc('write_audit', { p_action: 'contract.export', p_resource: 'contract', p_payload: { count: rows.length } })
   }
 
   async function bulkSetStatus(s: ContractStatus) {
@@ -218,6 +235,55 @@ export default function Contracts() {
     push('已删除', 'ok')
     setConfirmDelete(null)
     load()
+  }
+
+  async function openAttachments(c: Contract) {
+    setAttContract(c)
+    setAttFiles([])
+    setAttLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('contract_files')
+        .select('id, contract_id, store_id, file_path, file_name, mime_type, size_bytes, kind, created_at')
+        .eq('contract_id', c.id)
+        .order('created_at', { ascending: true })
+      if (error) throw error
+      setAttFiles((data as ContractFile[]) ?? [])
+    } catch (e) {
+      push(e instanceof Error ? e.message : '加载附件失败', 'err')
+    } finally {
+      setAttLoading(false)
+    }
+  }
+
+  async function attPreviewFile(f: ContractFile) {
+    setAttBusy(f.id)
+    try {
+      const url = await createViewUrl(f.file_path)
+      setAttPreview({ url, name: f.file_name, mime: f.mime_type || 'application/pdf' })
+    } catch (e) {
+      push(e instanceof Error ? e.message : '预览失败', 'err')
+    } finally {
+      setAttBusy(null)
+    }
+  }
+
+  async function attDownload(f: ContractFile) {
+    if (!attContract) return
+    setAttBusy(f.id)
+    try {
+      await downloadFile(f.file_path, f.file_name)
+      await supabase.rpc('write_audit', {
+        p_action: 'file.download',
+        p_resource: 'file',
+        p_resource_id: f.id,
+        p_store_id: attContract.store_id,
+      })
+    } catch (e) {
+      push(e instanceof Error ? e.message : '下载失败', 'err')
+    } finally {
+      setAttBusy(null)
+    }
   }
 
   const allChecked = filtered.length > 0 && filtered.every((r) => selected.has(r.id))
@@ -297,11 +363,19 @@ export default function Contracts() {
             ))}
           </select>
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
-            <Button variant="ghost" onClick={() => setShowAdvanced((v) => !v)} className={showAdvanced ? 'text-indigo-600' : ''}>
+            <Button variant="ghost" onClick={() => setShowAdvanced((v) => !v)} className={showAdvanced ? 'text-[var(--brand)]' : ''}>
               {showAdvanced ? '收起筛选' : '高级筛选'}
             </Button>
             {hasFilter && (
               <Button variant="ghost" onClick={resetFilters}>重置</Button>
+            )}
+            <span className="text-sm text-slate-400">
+              共 <b className="tabular-nums text-slate-700">{filtered.length}</b> 条
+            </span>
+            {can('contract.export') && (
+              <Button variant="default" onClick={exportExcel}>
+                {selected.size > 0 ? `导出所选 (${selected.size})` : '导出 Excel'}
+              </Button>
             )}
             {can('contract.create') && (
               <Button variant="primary" onClick={() => { setEditing(null); setFormOpen(true) }}>+ 新建合同</Button>
@@ -310,45 +384,45 @@ export default function Contracts() {
         </div>
 
         {showAdvanced && (
-          <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Field label="我方主体">
+          <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-3 lg:grid-cols-6">
+            <Field label="我方主体" className="sm:col-span-2 lg:col-span-2">
               <select className={inputCls} value={ourEntityFilter} onChange={(e) => setOurEntityFilter(e.target.value)}>
                 <option value="all">全部主体</option>
                 {ourEntities.map((o) => <option key={o.name} value={o.name}>{o.name}</option>)}
               </select>
             </Field>
             <Field label="标签">
-              <select className={inputCls} value={tagFilter} onChange={(e) => setTagFilter(e.target.value)}>
+              <select className={`${inputCls} !w-32`} value={tagFilter} onChange={(e) => setTagFilter(e.target.value)}>
                 <option value="all">全部</option>
                 {tags.map((t) => <option key={t.name}>{t.name}</option>)}
               </select>
             </Field>
             <Field label="自动续约">
-              <select className={inputCls} value={autoRenewFilter} onChange={(e) => setAutoRenewFilter(e.target.value as any)}>
+              <select className={`${inputCls} !w-24`} value={autoRenewFilter} onChange={(e) => setAutoRenewFilter(e.target.value as any)}>
                 <option value="all">全部</option>
                 <option value="yes">是</option>
                 <option value="no">否</option>
               </select>
             </Field>
-            <Field label="金额区间（元）">
+            <Field label="金额区间（元）" className="sm:col-span-2 lg:col-span-2">
               <div className="flex gap-1">
                 <input className={`${inputCls} min-w-0`} placeholder="最小" value={amountMin} onChange={(e) => setAmountMin(e.target.value)} />
                 <input className={`${inputCls} min-w-0`} placeholder="最大" value={amountMax} onChange={(e) => setAmountMax(e.target.value)} />
               </div>
             </Field>
-            <Field label="签订日期">
+            <Field label="签订日期" className="sm:col-span-2 lg:col-span-2">
               <div className="flex gap-1">
                 <input type="date" className={`${inputCls} min-w-0 px-2`} value={signedAfter} onChange={(e) => setSignedAfter(e.target.value)} />
                 <input type="date" className={`${inputCls} min-w-0 px-2`} value={signedBefore} onChange={(e) => setSignedBefore(e.target.value)} />
               </div>
             </Field>
-            <Field label="生效日期">
+            <Field label="生效日期" className="sm:col-span-2 lg:col-span-2">
               <div className="flex gap-1">
                 <input type="date" className={`${inputCls} min-w-0 px-2`} value={startAfter} onChange={(e) => setStartAfter(e.target.value)} />
                 <input type="date" className={`${inputCls} min-w-0 px-2`} value={startBefore} onChange={(e) => setStartBefore(e.target.value)} />
               </div>
             </Field>
-            <Field label="到期范围">
+            <Field label="到期范围" className="sm:col-span-2 lg:col-span-2">
               <div className="flex gap-1">
                 <input type="date" className={`${inputCls} min-w-0 px-2`} value={endAfter} onChange={(e) => setEndAfter(e.target.value)} />
                 <input type="date" className={`${inputCls} min-w-0 px-2`} value={endBefore} onChange={(e) => setEndBefore(e.target.value)} />
@@ -358,16 +432,7 @@ export default function Contracts() {
         )}
       </Card>
 
-      <Card
-        title={`合同 · ${filtered.length} 条`}
-        extra={
-          <div className="flex flex-wrap gap-2">
-            {can('contract.export') && (
-              <Button onClick={exportExcel}>导出 Excel</Button>
-            )}
-          </div>
-        }
-      >
+      <Card>
         {loading ? (
           <Empty text="加载中…" icon={<Spinner className="h-6 w-6 text-slate-300" />} />
         ) : filtered.length === 0 ? (
@@ -375,21 +440,22 @@ export default function Contracts() {
         ) : (
           <>
           <div className="overflow-x-auto rounded-xl ring-1 ring-slate-200/70">
-            <table className="w-full text-sm table-fixed">
+            <table className="w-full min-w-[1340px] text-sm table-fixed">
               <colgroup>
                 <col className="w-8" />
-                <col />
-                <col className="w-[88px]" />
-                <col className="w-[72px]" />
-                <col className="w-[140px]" />
-                <col className="w-[100px]" />
-                <col className="w-[148px]" />
-                <col className="w-[88px]" />
+                <col className="w-[280px]" />
+                <col className="w-[96px]" />
+                <col className="w-[76px]" />
+                <col className="w-[150px]" />
                 <col className="w-[120px]" />
+                <col className="w-[120px]" />
+                <col className="w-[190px]" />
+                <col className="w-[88px]" />
+                <col className="w-[180px]" />
               </colgroup>
               <thead className="bg-gradient-to-b from-slate-50 to-slate-50/70 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
-                  <th className="w-8 py-2.5">
+                  <th className="w-8 py-2 text-center">
                     <input
                       type="checkbox"
                       checked={allChecked}
@@ -398,22 +464,23 @@ export default function Contracts() {
                       }
                     />
                   </th>
-                  <th className="px-2 py-2.5 text-left font-medium">合同</th>
-                  <th className="px-2 py-2.5 text-left font-medium">门店</th>
-                  <th className="px-2 py-2.5 text-left font-medium">类别</th>
-                  <th className="px-2 py-2.5 text-left font-medium">对方</th>
-                  <th className="px-2 py-2.5 text-right font-medium">金额</th>
-                  <th className="px-2 py-2.5 text-left font-medium">到期</th>
-                  <th className="px-2 py-2.5 text-left font-medium">状态</th>
-                  <th className="px-2 py-2.5 text-right font-medium">操作</th>
+                  <th className="px-2 py-2 text-left font-medium">合同</th>
+                  <th className="px-2 py-2 text-left font-medium">门店</th>
+                  <th className="px-2 py-2 text-left font-medium">类别</th>
+                  <th className="px-2 py-2 text-left font-medium">对方</th>
+                  <th className="px-2 py-2 text-left font-medium">我方主体</th>
+                  <th className="pl-2 pr-3 py-2 text-right font-medium">金额</th>
+                  <th className="pl-3 pr-2 py-2 text-left font-medium">到期</th>
+                  <th className="px-2 py-2 text-left font-medium">状态</th>
+                  <th className="px-2 py-2 text-right font-medium">操作</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100/80">
                 {filtered.map((c) => {
                   const lv = c.status === 'active' ? dueLevel(daysLeft(c.end_at)) : null
                   return (
-                    <tr key={c.id} className="transition hover:bg-indigo-50/40">
-                      <td className="py-1.5">
+                    <tr key={c.id} className="transition hover:bg-[var(--brand)]/5">
+                      <td className="py-2 text-center">
                         <input
                           type="checkbox"
                           checked={selected.has(c.id)}
@@ -425,7 +492,7 @@ export default function Contracts() {
                           }}
                         />
                       </td>
-                      <td className="px-2 py-1.5">
+                      <td className="px-2 py-2">
                         <Link
                           to={`/contracts/${c.id}`}
                           className="block truncate font-medium text-slate-800 hover:underline"
@@ -445,18 +512,29 @@ export default function Contracts() {
                       <td className="truncate px-2 py-2 text-slate-600" title={c.counterparty ?? ''}>
                         {c.counterparty ?? '—'}
                       </td>
-                      <td className="px-2 py-2 text-right tabular-nums">
+                      <td className="truncate px-2 py-2 text-slate-600" title={c.our_entity ?? ''}>
+                        {shortEntity(c.our_entity, ourEntityShortMap.get(c.our_entity ?? '') ?? null)}
+                      </td>
+                      <td className="truncate pl-2 pr-3 py-2 text-right tabular-nums">
                         {can('amount.view') ? formatMoney(c.amount) : <span className="text-slate-300">—</span>}
                       </td>
-                      <td className="px-2 py-1.5">
-                        <div className="text-slate-700">{formatDate(c.end_at)}</div>
-                        {lv && <Pill className={lv.className}>{lv.label}</Pill>}
+                      <td className="pl-3 pr-2 py-2">
+                        <div className="flex items-center gap-2 whitespace-nowrap">
+                          <span className="text-slate-700">{formatDate(c.end_at)}</span>
+                          {lv && <Pill className={`shrink-0 ${lv.className}`}>{lv.label}</Pill>}
+                        </div>
                       </td>
-                      <td className="px-2 py-1.5">
+                      <td className="px-2 py-2">
                         <StatusBadge status={c.status} />
                       </td>
                       <td className="whitespace-nowrap px-2 py-2 text-right">
                         <div className="flex flex-nowrap items-center justify-end gap-1">
+                          <button
+                            onClick={() => openAttachments(c)}
+                            className="whitespace-nowrap rounded px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
+                          >
+                            附件
+                          </button>
                           <button
                             onClick={() => { setEditing(c); setFormOpen(true) }}
                             className="whitespace-nowrap rounded px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
@@ -478,23 +556,6 @@ export default function Contracts() {
                 })}
               </tbody>
             </table>
-          </div>
-          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-100 pt-3 text-xs text-slate-500">
-            <span>共 <b className="tabular-nums text-slate-700">{filtered.length}</b> 条</span>
-            <span className="text-slate-300">·</span>
-            <span>履行中 <b className="tabular-nums text-slate-700">{stats.active}</b></span>
-            {stats.expiring > 0 && (
-              <>
-                <span className="text-slate-300">·</span>
-                <span className="text-amber-700">30天内到期 <b className="tabular-nums">{stats.expiring}</b></span>
-              </>
-            )}
-            {stats.expired > 0 && (
-              <>
-                <span className="text-slate-300">·</span>
-                <span className="text-red-600">已逾期 <b className="tabular-nums">{stats.expired}</b></span>
-              </>
-            )}
           </div>
           </>
         )}
@@ -542,6 +603,65 @@ export default function Contracts() {
           ))}
         </div>
       </Modal>
+
+      {/* 行内附件查看 */}
+      <Modal
+        open={!!attContract}
+        title={`附件 · ${attContract?.title ?? ''}`}
+        onClose={() => { setAttContract(null); setAttFiles([]) }}
+      >
+        {attLoading ? (
+          <div className="flex justify-center py-8"><Spinner /></div>
+        ) : attFiles.length === 0 ? (
+          <Empty text="该合同还没有附件" />
+        ) : (
+          <ul className="space-y-2">
+            {attFiles.map((f) => (
+              <li
+                key={f.id}
+                className="flex items-center gap-3 rounded-lg border border-slate-200 p-2.5 transition hover:border-[var(--brand)]/40 hover:bg-[var(--brand)]/5"
+              >
+                <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md bg-slate-100">
+                  <FileGlyph mime={f.mime_type} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm text-slate-800">{f.file_name}</div>
+                  <div className="text-xs text-slate-400">
+                    {formatBytes(f.size_bytes)} · {formatDate(f.created_at)}
+                  </div>
+                </div>
+                <div className="flex shrink-0 gap-1">
+                  <Button variant="ghost" onClick={() => attPreviewFile(f)} disabled={attBusy === f.id}>
+                    预览
+                  </Button>
+                  <Button variant="ghost" onClick={() => attDownload(f)} disabled={attBusy === f.id}>
+                    下载
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Modal>
+
+      {/* 附件预览（可拖动 / 可缩放） */}
+      <FloatingModal
+        open={!!attPreview}
+        title={attPreview?.name ?? '预览'}
+        onClose={() => { if (attPreview?.url) URL.revokeObjectURL(attPreview.url); setAttPreview(null) }}
+      >
+        {attPreview && (
+          <div className="flex min-h-0 flex-1 flex-col bg-slate-50 p-2">
+            {attPreview.mime.startsWith('image/') ? (
+              <div className="min-h-0 flex-1 overflow-auto">
+                <img src={attPreview.url} alt={attPreview.name} className="mx-auto max-h-full object-contain" />
+              </div>
+            ) : (
+              <iframe src={attPreview.url} title={attPreview.name} className="h-full w-full rounded border-0 bg-white" />
+            )}
+          </div>
+        )}
+      </FloatingModal>
     </div>
   )
 }
