@@ -96,12 +96,23 @@ export default function Dashboard() {
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 8)
 
-  // 状态分布
-  const byStatus = ['draft', 'active', 'renewed', 'expired', 'cancelled'].map((s, i) => ({
-    name: ({ draft: '草稿', active: '履行中', renewed: '已续签', expired: '已到期', cancelled: '已作废' } as Record<string, string>)[s],
-    value: rows.filter((r) => r.status === s).length,
-    color: STATUS_COLORS[i] ?? '#64748b',
-  }))
+  // 状态分布（与顶部统计卡同口径：履行中但已过 end_at 的合同归入「已到期」，
+  // 否则会出现「已过期未处理 1」而饼图里已到期为 0 的矛盾）
+  const byStatus = [
+    { name: '草稿', color: STATUS_COLORS[0], value: rows.filter((r) => r.status === 'draft').length },
+    {
+      name: '履行中',
+      color: STATUS_COLORS[1],
+      value: active.filter((r) => r.days_left == null || r.days_left >= 0).length,
+    },
+    { name: '已续签', color: STATUS_COLORS[2], value: rows.filter((r) => r.status === 'renewed').length },
+    {
+      name: '已到期',
+      color: STATUS_COLORS[3],
+      value: rows.filter((r) => r.status === 'expired').length + overdue.length,
+    },
+    { name: '已作废', color: STATUS_COLORS[4], value: rows.filter((r) => r.status === 'cancelled').length },
+  ]
 
   // 类别分布
   const byCategory = (() => {
@@ -288,7 +299,7 @@ export default function Dashboard() {
                     }}
                   />
                 </Pie>
-                <Tooltip />
+                <Tooltip formatter={(v: number, n: string) => [`${v} 份`, n]} />
                 <Legend
                   verticalAlign="bottom"
                   height={24}
@@ -308,7 +319,7 @@ export default function Dashboard() {
               <BarChart data={byCategory}>
                 <XAxis dataKey="name" tick={{ fontSize: 10 }} />
                 <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
-                <Tooltip />
+                <Tooltip formatter={(v: number) => [`${v} 份`, '合同数']} />
                 <Bar dataKey="value" fill="var(--brand)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -318,7 +329,7 @@ export default function Dashboard() {
               <BarChart data={amountBuckets}>
                 <XAxis dataKey="name" tick={{ fontSize: 10 }} />
                 <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
-                <Tooltip />
+                <Tooltip formatter={(v: number) => [`${v} 份`, '合同数']} />
                 <Bar dataKey="value" fill="var(--brand)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>

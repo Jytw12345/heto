@@ -61,6 +61,10 @@ export default function Settings() {
   const [editShort, setEditShort] = useState('')
   const [checkingUpdate, setCheckingUpdate] = useState(false)
 
+  // 低权限账号：没有任何管理类卡片（推送渠道/提醒规则/我方主体），
+  // 双栏会把仅有的几张卡拉散、左栏大片留白 → 自动切单列居中
+  const simpleLayout = !can('channel.manage') && !can('reminder.manage') && !isHq
+
   const load = useCallback(async () => {
     const [{ data: c }, { data: r }] = await Promise.all([
       supabase.from('notification_channels').select('*').order('created_at', { ascending: false }),
@@ -130,9 +134,15 @@ export default function Settings() {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-      {/* 左栏：核心设置 */}
-      <div className="space-y-4 xl:col-span-7">
+    <div
+      className={
+        simpleLayout
+          ? 'mx-auto grid w-full max-w-4xl grid-cols-1 gap-4'
+          : 'grid grid-cols-1 gap-4 xl:grid-cols-12'
+      }
+    >
+      {/* 左栏：核心设置（单列模式下 contents 透传，卡片直接参与外层网格） */}
+      <div className={simpleLayout ? 'contents' : 'space-y-4 xl:col-span-7'}>
         <Card title="个人资料">
           <form onSubmit={saveProfile} className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <label className="flex min-w-0 flex-1 items-center gap-2">
@@ -248,7 +258,7 @@ export default function Settings() {
       </div>
 
       {/* 右栏：辅助信息 */}
-      <div className="space-y-4 xl:col-span-5">
+      <div className={simpleLayout ? 'contents' : 'space-y-4 xl:col-span-5'}>
         {isHq && (
           <Card
             title="我方主体"

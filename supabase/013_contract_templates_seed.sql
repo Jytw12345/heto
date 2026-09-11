@@ -54,13 +54,13 @@ from (values
 <p>因本合同引起的争议，双方应友好协商解决；协商不成，任何一方均可向 <strong>乙方所在地</strong> 人民法院提起诉讼。</p>
 <h3>第八条　其他约定</h3>
 <p>{{备注}}</p>
-<table style="width:100%; border-collapse:collapse; margin-top:28px"><tbody><tr>
-<td style="width:50%; text-align:left; vertical-align:top">
+<table style="width:100%; border-collapse:collapse; border:none; margin-top:28px"><tbody><tr>
+<td style="width:50%; text-align:left; vertical-align:top; border:none">
 <p>甲方（盖章）：________________</p>
 <p>授权代表：____________</p>
 <p>日期：______年____月____日</p>
 </td>
-<td style="width:50%; text-align:left; vertical-align:top">
+<td style="width:50%; text-align:left; vertical-align:top; border:none">
 <p>乙方（盖章）：________________</p>
 <p>授权代表：____________</p>
 <p>日期：______年____月____日</p>
@@ -105,13 +105,13 @@ $b$
 <p>协商不成，向 <strong>乙方所在地</strong> 人民法院起诉。</p>
 <h3>第八条　其他约定</h3>
 <p>{{备注}}</p>
-<table style="width:100%; border-collapse:collapse; margin-top:28px"><tbody><tr>
-<td style="width:50%; text-align:left; vertical-align:top">
+<table style="width:100%; border-collapse:collapse; border:none; margin-top:28px"><tbody><tr>
+<td style="width:50%; text-align:left; vertical-align:top; border:none">
 <p>甲方（盖章）：________________</p>
 <p>授权代表：____________</p>
 <p>日期：______年____月____日</p>
 </td>
-<td style="width:50%; text-align:left; vertical-align:top">
+<td style="width:50%; text-align:left; vertical-align:top; border:none">
 <p>乙方（盖章）：________________</p>
 <p>授权代表：____________</p>
 <p>日期：______年____月____日</p>
@@ -155,13 +155,13 @@ $b$
 <p>协商不成，向 <strong>乙方所在地</strong> 人民法院起诉。</p>
 <h3>第八条　其他约定</h3>
 <p>{{备注}}</p>
-<table style="width:100%; border-collapse:collapse; margin-top:28px"><tbody><tr>
-<td style="width:50%; text-align:left; vertical-align:top">
+<table style="width:100%; border-collapse:collapse; border:none; margin-top:28px"><tbody><tr>
+<td style="width:50%; text-align:left; vertical-align:top; border:none">
 <p>甲方（盖章）：________________</p>
 <p>授权代表：____________</p>
 <p>日期：______年____月____日</p>
 </td>
-<td style="width:50%; text-align:left; vertical-align:top">
+<td style="width:50%; text-align:left; vertical-align:top; border:none">
 <p>乙方（盖章）：________________</p>
 <p>授权代表：____________</p>
 <p>日期：______年____月____日</p>
@@ -205,13 +205,13 @@ $b$
 <p>协商不成，向 <strong>乙方所在地</strong> 人民法院起诉。</p>
 <h3>第九条　其他约定</h3>
 <p>{{备注}}</p>
-<table style="width:100%; border-collapse:collapse; margin-top:28px"><tbody><tr>
-<td style="width:50%; text-align:left; vertical-align:top">
+<table style="width:100%; border-collapse:collapse; border:none; margin-top:28px"><tbody><tr>
+<td style="width:50%; text-align:left; vertical-align:top; border:none">
 <p>甲方（盖章）：________________</p>
 <p>授权代表：____________</p>
 <p>日期：______年____月____日</p>
 </td>
-<td style="width:50%; text-align:left; vertical-align:top">
+<td style="width:50%; text-align:left; vertical-align:top; border:none">
 <p>乙方（盖章）：________________</p>
 <p>授权代表：____________</p>
 <p>日期：______年____月____日</p>
@@ -255,13 +255,13 @@ $b$
 <p>协商不成，向 <strong>乙方所在地</strong> 人民法院起诉。</p>
 <h3>第九条　其他约定</h3>
 <p>{{备注}}</p>
-<table style="width:100%; border-collapse:collapse; margin-top:28px"><tbody><tr>
-<td style="width:50%; text-align:left; vertical-align:top">
+<table style="width:100%; border-collapse:collapse; border:none; margin-top:28px"><tbody><tr>
+<td style="width:50%; text-align:left; vertical-align:top; border:none">
 <p>甲方（盖章）：________________</p>
 <p>授权代表：____________</p>
 <p>日期：______年____月____日</p>
 </td>
-<td style="width:50%; text-align:left; vertical-align:top">
+<td style="width:50%; text-align:left; vertical-align:top; border:none">
 <p>乙方（盖章）：________________</p>
 <p>授权代表：____________</p>
 <p>日期：______年____月____日</p>
@@ -307,13 +307,13 @@ $b$
 <p>协商不成，向 <strong>工程所在地</strong> 人民法院起诉。</p>
 <h3>第九条　其他约定</h3>
 <p>{{备注}}</p>
-<table style="width:100%; border-collapse:collapse; margin-top:28px"><tbody><tr>
-<td style="width:50%; text-align:left; vertical-align:top">
+<table style="width:100%; border-collapse:collapse; border:none; margin-top:28px"><tbody><tr>
+<td style="width:50%; text-align:left; vertical-align:top; border:none">
 <p>甲方（盖章）：________________</p>
 <p>授权代表：____________</p>
 <p>日期：______年____月____日</p>
 </td>
-<td style="width:50%; text-align:left; vertical-align:top">
+<td style="width:50%; text-align:left; vertical-align:top; border:none">
 <p>乙方（盖章）：________________</p>
 <p>授权代表：____________</p>
 <p>日期：______年____月____日</p>
@@ -358,13 +358,13 @@ $b$
 <p>协商不成，向 <strong>工程所在地</strong> 人民法院起诉。</p>
 <h3>第十条　其他约定</h3>
 <p>{{备注}}</p>
-<table style="width:100%; border-collapse:collapse; margin-top:28px"><tbody><tr>
-<td style="width:50%; text-align:left; vertical-align:top">
+<table style="width:100%; border-collapse:collapse; border:none; margin-top:28px"><tbody><tr>
+<td style="width:50%; text-align:left; vertical-align:top; border:none">
 <p>甲方（盖章）：________________</p>
 <p>授权代表：____________</p>
 <p>日期：______年____月____日</p>
 </td>
-<td style="width:50%; text-align:left; vertical-align:top">
+<td style="width:50%; text-align:left; vertical-align:top; border:none">
 <p>乙方（盖章）：________________</p>
 <p>授权代表：____________</p>
 <p>日期：______年____月____日</p>
@@ -418,13 +418,13 @@ $b$
 <p>协商不成，向 <strong>乙方所在地</strong> 人民法院起诉。</p>
 <h3>第八条　其他约定</h3>
 <p>{{备注}}</p>
-<table style="width:100%; border-collapse:collapse; margin-top:28px"><tbody><tr>
-<td style="width:50%; text-align:left; vertical-align:top">
+<table style="width:100%; border-collapse:collapse; border:none; margin-top:28px"><tbody><tr>
+<td style="width:50%; text-align:left; vertical-align:top; border:none">
 <p>甲方（盖章）：________________</p>
 <p>授权代表：____________</p>
 <p>日期：______年____月____日</p>
 </td>
-<td style="width:50%; text-align:left; vertical-align:top">
+<td style="width:50%; text-align:left; vertical-align:top; border:none">
 <p>乙方（盖章）：________________</p>
 <p>授权代表：____________</p>
 <p>日期：______年____月____日</p>
@@ -466,13 +466,13 @@ $b$
 <p>协商不成，向 <strong>甲方所在地</strong> 人民法院起诉。</p>
 <h3>第八条　其他约定</h3>
 <p>{{备注}}</p>
-<table style="width:100%; border-collapse:collapse; margin-top:28px"><tbody><tr>
-<td style="width:50%; text-align:left; vertical-align:top">
+<table style="width:100%; border-collapse:collapse; border:none; margin-top:28px"><tbody><tr>
+<td style="width:50%; text-align:left; vertical-align:top; border:none">
 <p>甲方（盖章）：________________</p>
 <p>授权代表：____________</p>
 <p>日期：______年____月____日</p>
 </td>
-<td style="width:50%; text-align:left; vertical-align:top">
+<td style="width:50%; text-align:left; vertical-align:top; border:none">
 <p>乙方（盖章）：________________</p>
 <p>授权代表：____________</p>
 <p>日期：______年____月____日</p>
@@ -514,13 +514,13 @@ $b$
 <p>协商不成，向 <strong>乙方所在地</strong> 人民法院起诉。</p>
 <h3>第八条　其他约定</h3>
 <p>{{备注}}</p>
-<table style="width:100%; border-collapse:collapse; margin-top:28px"><tbody><tr>
-<td style="width:50%; text-align:left; vertical-align:top">
+<table style="width:100%; border-collapse:collapse; border:none; margin-top:28px"><tbody><tr>
+<td style="width:50%; text-align:left; vertical-align:top; border:none">
 <p>甲方（盖章）：________________</p>
 <p>授权代表：____________</p>
 <p>日期：______年____月____日</p>
 </td>
-<td style="width:50%; text-align:left; vertical-align:top">
+<td style="width:50%; text-align:left; vertical-align:top; border:none">
 <p>乙方（盖章）：________________</p>
 <p>授权代表：____________</p>
 <p>日期：______年____月____日</p>
@@ -564,13 +564,13 @@ $b$
 <p>协商不成，向 <strong>乙方所在地</strong> 人民法院起诉。</p>
 <h3>第九条　其他约定</h3>
 <p>{{备注}}</p>
-<table style="width:100%; border-collapse:collapse; margin-top:28px"><tbody><tr>
-<td style="width:50%; text-align:left; vertical-align:top">
+<table style="width:100%; border-collapse:collapse; border:none; margin-top:28px"><tbody><tr>
+<td style="width:50%; text-align:left; vertical-align:top; border:none">
 <p>甲方（盖章）：________________</p>
 <p>授权代表：____________</p>
 <p>日期：______年____月____日</p>
 </td>
-<td style="width:50%; text-align:left; vertical-align:top">
+<td style="width:50%; text-align:left; vertical-align:top; border:none">
 <p>乙方（盖章）：________________</p>
 <p>授权代表：____________</p>
 <p>日期：______年____月____日</p>

@@ -117,6 +117,10 @@ export function FloatingModal({
 
   function startDrag(e: ReactPointerEvent) {
     if (maximized) return
+    // 命中标题栏上的按钮（最大化/关闭）时：不启动拖拽、不捕获指针。
+    // 否则 setPointerCapture 会把后续 click 重定向到 header，按钮的 onClick 永远收不到，
+    // 表现为「点叉号关不掉、连点两下反而触发最大化」。
+    if ((e.target as HTMLElement).closest('button')) return
     e.currentTarget.setPointerCapture(e.pointerId)
     dragRef.current = { dx: e.clientX - pos.x, dy: e.clientY - pos.y }
   }
@@ -175,7 +179,11 @@ export function FloatingModal({
           onPointerDown={startDrag}
           onPointerMove={moveDrag}
           onPointerUp={endDrag}
-          onDoubleClick={() => setMaximized((m) => !m)}
+          onDoubleClick={(e) => {
+            // 双击按钮不切换最大化（只认标题栏空白处的双击）
+            if ((e.target as HTMLElement).closest('button')) return
+            setMaximized((m) => !m)
+          }}
           className="flex shrink-0 cursor-move touch-none select-none items-center justify-between border-b border-slate-100 px-4 py-2.5"
         >
           <h3 className="truncate pr-3 text-sm font-medium text-slate-900">{title}</h3>

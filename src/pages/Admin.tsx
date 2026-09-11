@@ -22,7 +22,7 @@ function EditableName({
   const [name, setName] = useState(account.profile?.full_name ?? '')
   return (
     <input
-      className={`${inputClsInline} w-24 py-1 text-xs`}
+      className={`${inputClsInline} w-full py-1 text-xs sm:w-24`}
       placeholder={account.profile?.full_name ? '' : '姓名'}
       value={name}
       onChange={(e) => setName(e.target.value)}
@@ -201,63 +201,81 @@ export default function Admin() {
         ) : (
           <ul className="divide-y divide-slate-100">
             {accounts.map((a) => (
-              <li key={a.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-1.5">
-                <div className="min-w-0 flex-1 truncate text-sm">
-                  <span className="text-slate-800">{a.email}</span>
+              <li key={a.id} className="py-2 sm:flex sm:flex-wrap sm:items-center sm:gap-x-2 sm:gap-y-1">
+                {/* 邮箱 + 状态：手机上独占一行，电脑上弹性收缩 */}
+                <div className="mb-1.5 flex min-w-0 items-center gap-2 sm:mb-0 sm:flex-1">
+                  <span className="truncate text-sm text-slate-800">{a.email}</span>
                   {a.profile && !a.profile.active && (
-                    <span className="ml-2 text-xs text-slate-400">已停用</span>
+                    <span className="text-xs text-slate-400">已停用</span>
                   )}
+                  {/* 手机端：权限/启用停用跟在邮箱后面 */}
+                  <div className="ml-auto flex shrink-0 items-center gap-1 sm:hidden">
+                    <Button variant="ghost" onClick={() => setPermModal(a)}>
+                      权限
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => patchAccount(a.id, { active: !a.profile?.active })}
+                    >
+                      {a.profile?.active === false ? '启用' : '停用'}
+                    </Button>
+                  </div>
                 </div>
 
-                <EditableName
-                  account={a}
-                  onSave={(name) => patchAccount(a.id, { full_name: name || null })}
-                />
+                {/* 手机上 3 列网格，电脑上 inline flex */}
+                <div className="grid grid-cols-3 items-center gap-2 sm:flex sm:flex-wrap">
+                  <EditableName
+                    account={a}
+                    onSave={(name) => patchAccount(a.id, { full_name: name || null })}
+                  />
 
-                <select
-                  className={`${inputClsInline} py-1 text-xs`}
-                  value={a.profile?.position_template_id ?? ''}
-                  onChange={(e) => {
-                    const tid = e.target.value || null
-                    const tpl = positionTemplates.find((t) => t.id === tid)
-                    const payload: Partial<Profile> = { position_template_id: tid }
-                    // 职务自带数据范围：选职务时自动设置 role（可后续手动改）
-                    if (tpl) payload.role = tpl.scope
-                    patchAccount(a.id, payload)
-                  }}
-                >
-                  <option value="">（按角色默认）</option>
-                  {positionTemplates.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                      {t.scope === 'hq' ? ' · 全门店' : ' · 本门店'}
-                    </option>
-                  ))}
-                </select>
+                  <select
+                    className={`${inputClsInline} w-full py-1 text-xs sm:w-auto`}
+                    value={a.profile?.position_template_id ?? ''}
+                    onChange={(e) => {
+                      const tid = e.target.value || null
+                      const tpl = positionTemplates.find((t) => t.id === tid)
+                      const payload: Partial<Profile> = { position_template_id: tid }
+                      // 职务自带数据范围：选职务时自动设置 role（可后续手动改）
+                      if (tpl) payload.role = tpl.scope
+                      patchAccount(a.id, payload)
+                    }}
+                  >
+                    <option value="">（按角色默认）</option>
+                    {positionTemplates.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                        {t.scope === 'hq' ? ' · 全门店' : ' · 本门店'}
+                      </option>
+                    ))}
+                  </select>
 
-                <select
-                  className={`${inputClsInline} py-1 text-xs`}
-                  value={a.profile?.store_id ?? ''}
-                  onChange={(e) => patchAccount(a.id, { store_id: e.target.value || null })}
-                >
-                  <option value="">未分配</option>
-                  {stores.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
+                  <select
+                    className={`${inputClsInline} w-full py-1 text-xs sm:w-auto`}
+                    value={a.profile?.store_id ?? ''}
+                    onChange={(e) => patchAccount(a.id, { store_id: e.target.value || null })}
+                  >
+                    <option value="">未分配</option>
+                    {stores.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
 
-                <Button variant="ghost" onClick={() => setPermModal(a)}>
-                  权限
-                </Button>
-
-                <Button
-                  variant="ghost"
-                  onClick={() => patchAccount(a.id, { active: !a.profile?.active })}
-                >
-                  {a.profile?.active === false ? '启用' : '停用'}
-                </Button>
+                  {/* 电脑端：权限/启用停用留在行内 */}
+                  <div className="hidden shrink-0 items-center gap-1 sm:flex">
+                    <Button variant="ghost" onClick={() => setPermModal(a)}>
+                      权限
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => patchAccount(a.id, { active: !a.profile?.active })}
+                    >
+                      {a.profile?.active === false ? '启用' : '停用'}
+                    </Button>
+                  </div>
+                </div>
               </li>
             ))}
           </ul>
