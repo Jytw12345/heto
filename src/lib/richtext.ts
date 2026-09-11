@@ -565,7 +565,9 @@ export function setRowHeight(root: HTMLElement, px: number, allRows = false): st
   const cell = currentCell(root)
   if (!table || !cell) return '请先把光标放进表格里'
   const h = Math.min(400, Math.max(20, Math.round(px)))
-  const targets = allRows ? Array.from(table.rows) : [cell.closest('tr') as HTMLTableRowElement | null].filter(Boolean)
+  const targets = allRows
+    ? Array.from(table.rows)
+    : [cell.closest('tr')].filter((tr): tr is HTMLTableRowElement => tr instanceof HTMLTableRowElement)
   for (const tr of targets) tr.style.height = `${h}px`
   return null
 }
