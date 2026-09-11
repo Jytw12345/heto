@@ -30,6 +30,7 @@ const ACTION_LABEL: Record<string, string> = {
   'contract.delete': '删除合同',
   'contract.renew': '续签合同',
   'contract.status_change': '合同状态变更',
+  'contract.export': '导出合同',
   'file.upload': '上传文件',
   'file.download': '下载文件',
   'file.delete': '删除文件',
@@ -44,12 +45,18 @@ const ACTION_LABEL: Record<string, string> = {
   'channel.delete': '删除通知渠道',
   'channel.test': '测试通知渠道',
   'reminder.create': '创建提醒规则',
+  'reminder_rule.create': '创建提醒规则',
   'reminder.update': '更新提醒规则',
+  'reminder_rule.update': '更新提醒规则',
   'reminder.delete': '删除提醒规则',
+  'reminder_rule.delete': '删除提醒规则',
   'reminder.fire': '触发提醒',
   'audit.export': '导出审计日志',
   'system.cleanup': '系统清理',
   'system.migration': '系统迁移',
+  'login.success': '登录成功',
+  'login.fail': '登录失败',
+  'profile.password.reset': '重置密码',
 }
 
 // 资源类型 → 中文名
