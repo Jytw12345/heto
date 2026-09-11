@@ -131,7 +131,10 @@ export interface ContractTemplate {
   fields: Record<string, unknown>
   note: string | null
   active: boolean
+  /** 合同正文模板（HTML），支持 {{占位符}}；012 迁移新增 */
+  body: string
   created_at: string
+  updated_at?: string
 }
 
 export interface NotifChannelConfig {

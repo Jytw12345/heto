@@ -18,6 +18,12 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M16 13H8" /><path d="M16 17H8" /><path d="M10 9H8" />
     </svg>
   ),
+  template: (
+    <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4.5A1.5 1.5 0 0 1 5.5 3h9L20 8.5v11A1.5 1.5 0 0 1 18.5 21h-13A1.5 1.5 0 0 1 4 19.5z" />
+      <path d="M14 3v6h6" /><path d="M8 13h8" /><path d="M8 17h5" />
+    </svg>
+  ),
   bell: (
     <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
@@ -65,6 +71,7 @@ const NAV: {
 }[] = [
   { to: '/', label: '概览', short: '概览', title: '概览', desc: '合同全局视图与统计', end: true, icon: ICONS.overview, show: () => true },
   { to: '/contracts', label: '合同', short: '合同', title: '合同', desc: '全部合同与多维筛选', icon: ICONS.contract, show: () => true },
+  { to: '/templates', label: '合同模板', short: '模板', title: '合同模板', desc: '维护正文模板并生成合同电子版', icon: ICONS.template, show: () => true },
   { to: '/reminders', label: '到期提醒', short: '提醒', title: '到期提醒', desc: '即将到期与已逾期', icon: ICONS.bell, show: () => true },
   { to: '/admin', label: '门店与账号', short: '门店', title: '门店与账号', desc: '门店与成员管理', icon: ICONS.users, show: (c) => c.isHq },
   { to: '/audit', label: '审计日志', short: '审计', title: '审计日志', desc: '关键操作留痕', icon: ICONS.audit, show: (c) => c.can('audit.view') },

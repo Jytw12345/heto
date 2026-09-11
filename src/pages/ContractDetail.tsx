@@ -1,16 +1,19 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { createViewUrl, downloadFile, removeFile } from '../lib/storage'
+import { createViewUrl, downloadFile, removeFile, uploadFile } from '../lib/storage'
 import { useAuth } from '../hooks/useAuth'
 import { useStores } from '../hooks/useStores'
-import { Button, Card, Empty, FileGlyph, FloatingModal, Pill, StatusBadge } from '../components/ui'
+import { Button, Card, Empty, FileGlyph, FloatingModal, Modal, Pill, Spinner, StatusBadge } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { copyText, useContextMenu, type MenuItem } from '../components/ContextMenu'
 import FileUploader from '../components/FileUploader'
 import ContractForm from './ContractForm'
 import { daysLeft, dueLevel, formatBytes, formatDate, formatMoney } from '../lib/format'
-import { STATUS_LABEL, type Contract, type ContractFile } from '../types'
+import { docFilename, printHtml, renderTemplate, buildDocData } from '../lib/docgen'
+import { buildDocx, downloadDocx } from '../lib/docx'
+import { RichEditor } from '../components/RichEditor'
+import { STATUS_LABEL, type Contract, type ContractFile, type ContractTemplate } from '../types'
 
 export default function ContractDetail() {
   const { id } = useParams()
@@ -27,6 +30,17 @@ export default function ContractDetail() {
   const [renewOpen, setRenewOpen] = useState(false)
   const [preview, setPreview] = useState<{ url: string; name: string; mime: string } | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [docOpen, setDocOpen] = useState(false)
+  const [docLoading, setDocLoading] = useState(false)
+  const [templates, setTemplates] = useState<ContractTemplate[]>([])
+  const [docPreview, setDocPreview] = useState<{ html: string; filename: string } | null>(null)
+  const docEditorRef = useRef<HTMLDivElement>(null)
+  const [savingDoc, setSavingDoc] = useState(false)
+
+  // 生成新文档时把 HTML 写进可编辑区（只在源变化时写，避免打字时光标跳动）
+  useEffect(() => {
+    if (docPreview && docEditorRef.current) docEditorRef.current.innerHTML = docPreview.html
+  }, [docPreview])
 
   const loadFiles = useCallback(async () => {
     const { data } = await supabase
@@ -164,6 +178,89 @@ export default function ContractDetail() {
 
   const ctx = useContextMenu()
 
+  /** 生成合同电子版：选模板 → 预览 → 下载 Word / 打印为 PDF */
+  async function openDocPicker() {
+    setDocOpen(true)
+    if (templates.length) return
+    setDocLoading(true)
+    const { data } = await supabase
+      .from('contract_templates')
+      .select('*')
+      .eq('active', true)
+      .order('name')
+    setTemplates(((data as ContractTemplate[]) ?? []).filter((t) => (t.body ?? '').trim() !== ''))
+    setDocLoading(false)
+  }
+
+  function genFromTemplate(tpl: ContractTemplate) {
+    if (!c) return
+    const html = renderTemplate(tpl.body, buildDocData(c, { storeName: c.store_name }))
+    setDocPreview({ html, filename: docFilename(c.title, tpl.name) })
+    setDocOpen(false)
+  }
+
+  /** 取当前编辑区内容（用户可在预览弹窗里直接改），兜底用生成时的 HTML */
+  function currentDocHtml(): string {
+    return docEditorRef.current?.innerHTML ?? docPreview?.html ?? ''
+  }
+
+  /** 下载合同文档（.docx）并留痕 */
+  async function downloadDoc() {
+    if (!docPreview || !c) return
+    try {
+      await downloadDocx(currentDocHtml(), docPreview.filename, docPreview.filename)
+      await supabase.rpc('write_audit', {
+        p_action: 'contract.doc_generate',
+        p_resource: 'contract',
+        p_resource_id: c.id,
+        p_store_id: c.store_id,
+      })
+    } catch (e) {
+      push(e instanceof Error ? e.message : '生成 Word 失败', 'err')
+    }
+  }
+
+  /**
+   * 把当前编辑好的合同文档直接存为该合同的附件（上传 COS + 写 contract_files）。
+   * 免去「先下载再手动上传」两步。kind 用 attachment（不新增枚举值，无需再跑迁移）。
+   */
+  async function saveDocAsAttachment() {
+    if (!docPreview || !c) return
+    setSavingDoc(true)
+    try {
+      const name = `${docPreview.filename.replace(/\.docx$/i, '')}（系统生成）.docx`
+      const bytes = await buildDocx(currentDocHtml(), name)
+      const file = new File([bytes as BlobPart], name, {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      })
+      const res = await uploadFile(file, { storeId: c.store_id, contractId: c.id })
+      const { error } = await supabase.from('contract_files').insert({
+        contract_id: c.id,
+        store_id: c.store_id,
+        file_path: res.path,
+        file_name: res.name,
+        mime_type: res.mime,
+        size_bytes: res.size,
+        sha256: res.sha256,
+        kind: 'attachment',
+      })
+      if (error) throw new Error(error.message)
+      await supabase.rpc('write_audit', {
+        p_action: 'file.upload',
+        p_resource: 'file',
+        p_resource_id: c.id,
+        p_store_id: c.store_id,
+        p_payload: { source: 'generated_docx', name },
+      })
+      push('已存为该合同的附件', 'ok')
+      await loadFiles()
+    } catch (e) {
+      push(e instanceof Error ? e.message : '保存失败', 'err')
+    } finally {
+      setSavingDoc(false)
+    }
+  }
+
   /** 右键 / 长按「附件条目」的菜单 */
   function fileMenu(f: ContractFile): MenuItem[] {
     const items: MenuItem[] = [
@@ -231,6 +328,7 @@ export default function ContractDetail() {
             )}
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end print:hidden">
               <Button onClick={() => window.print()} className="hidden sm:inline-flex">🖨 打印</Button>
+              <Button className="w-full sm:w-auto" onClick={openDocPicker}>📄 合同文档</Button>
               {can('contract.renew') && c.status !== 'cancelled' && (
                 <Button className="w-full sm:w-auto" onClick={() => setRenewOpen(true)}>🔁 一键续签</Button>
               )}
@@ -408,6 +506,67 @@ export default function ContractDetail() {
         }}
         onAfterCreate={(id) => { setRenewOpen(false); navigate(`/contracts/${id}`) }}
       />
+
+      {/* 选择合同模板 */}
+      <Modal open={docOpen} title="生成合同文档" onClose={() => setDocOpen(false)}>
+        {docLoading ? (
+          <div className="flex justify-center py-8">
+            <Spinner />
+          </div>
+        ) : templates.length === 0 ? (
+          <Empty text="还没有带正文的模板，去「合同模板」新建一个" compact />
+        ) : (
+          <ul className="space-y-2">
+            {templates.map((t) => (
+              <li key={t.id}>
+                <button
+                  type="button"
+                  onClick={() => genFromTemplate(t)}
+                  className="flex w-full items-center gap-3 rounded-xl border border-slate-200 px-3 py-2.5 text-left transition hover:border-[var(--brand)]/50 hover:bg-[var(--brand)]/5"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-slate-800">{t.name}</span>
+                    <span className="block text-[11px] text-slate-400">
+                      {t.category || '未分类'} · 点击生成
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-xs text-slate-400">›</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="mt-3 text-xs leading-relaxed text-slate-400">
+          会用本合同的「对方公司 / 金额 / 日期」等数据替换模板里的占位符，生成后可下载 Word 或打印为 PDF。
+        </p>
+      </Modal>
+
+      {/* 合同文档预览 + 下载 */}
+      <FloatingModal
+        open={!!docPreview}
+        title={`合同文档 · ${docPreview?.filename ?? ''}`}
+        onClose={() => setDocPreview(null)}
+      >
+        {docPreview && (
+          <div className="flex min-h-0 flex-1 flex-col bg-slate-100">
+            <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-3 py-2">
+              <span className="mr-auto text-xs text-slate-400">
+                可直接在下方修改内容，改完再下载
+              </span>
+              <Button variant="primary" onClick={downloadDoc}>
+                下载 Word（.docx）
+              </Button>
+              <Button disabled={savingDoc} onClick={saveDocAsAttachment}>
+                {savingDoc ? '保存中…' : '存为合同附件'}
+              </Button>
+              <Button onClick={() => printHtml(currentDocHtml(), docPreview.filename)}>打印 / 存为 PDF</Button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-auto p-3">
+              <RichEditor editorRef={docEditorRef} minHeight={520} onMessage={(m) => push(m, 'err')} />
+            </div>
+          </div>
+        )}
+      </FloatingModal>
 
       <FloatingModal
         open={!!preview}

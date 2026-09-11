@@ -9,6 +9,7 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Contracts from './pages/Contracts'
 import ContractDetail from './pages/ContractDetail'
+import Templates from './pages/Templates'
 import Reminders from './pages/Reminders'
 import Admin from './pages/Admin'
 import Settings from './pages/Settings'
@@ -66,6 +67,7 @@ export default function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/contracts" element={<Contracts />} />
               <Route path="/contracts/:id" element={<ContractDetail />} />
+              <Route path="/templates" element={<Templates />} />
               <Route path="/reminders" element={<Reminders />} />
               <Route
                 path="/admin"

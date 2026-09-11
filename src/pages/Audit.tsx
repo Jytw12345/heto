@@ -10,7 +10,7 @@ import type { AuditLog } from '../types'
 // label 用于列表分组标题；short 用于筛选下拉，尽量短以省空间
 const ACTION_GROUPS: { label: string; short: string; match: RegExp }[] = [
   { label: '登录 / 账号', short: '账号', match: /^(login|logout|profile\.|password|position)/ },
-  { label: '合同', short: '合同', match: /^contract\./ },
+  { label: '合同', short: '合同', match: /^(contract|template)\./ },
   { label: '文件', short: '文件', match: /^(file|cos)/ },
   { label: '门店 / 渠道 / 提醒', short: '门店渠道', match: /^(store|channel|reminder)/ },
   { label: '审计 / 系统', short: '系统', match: /^audit\.|\.system/ },
@@ -35,6 +35,10 @@ const ACTION_LABEL: Record<string, string> = {
   'contract.renew': '续签合同',
   'contract.status_change': '合同状态变更',
   'contract.export': '导出合同',
+  'template.create': '创建合同模板',
+  'template.update': '更新合同模板',
+  'template.delete': '删除合同模板',
+  'contract.doc_generate': '生成合同文档',
   'file.upload': '上传文件',
   'file.download': '下载文件',
   'file.delete': '删除文件',
@@ -67,6 +71,7 @@ const ACTION_LABEL: Record<string, string> = {
 const RESOURCE_LABEL: Record<string, string> = {
   profile: '账号',
   contract: '合同',
+  contract_template: '合同模板',
   file: '文件',
   store: '门店',
   channel: '通知渠道',
