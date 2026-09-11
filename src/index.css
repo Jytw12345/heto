@@ -45,6 +45,9 @@ html[data-theme='slate'] {
 
 html {
   -webkit-text-size-adjust: 100%;
+  /* 兜底：防止个别绝对定位/长内容在窄屏撑出横向滚动条。
+     用 clip 而非 hidden —— hidden 会把 html 变成滚动容器，导致 position:sticky 失效 */
+  overflow-x: clip;
 }
 
 body {

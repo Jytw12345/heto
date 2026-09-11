@@ -2,7 +2,6 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
-import { ThemeSwitcher } from './ThemeSwitcher'
 
 type Ctx = { isHq: boolean; can: (k: any) => boolean }
 
@@ -56,26 +55,31 @@ const ICONS: Record<string, ReactNode> = {
 const NAV: {
   to: string
   label: string
+  /** 底部标签栏用的短名（移动端空间有限） */
+  short: string
   title: string
   desc: string
   end?: boolean
   icon: ReactNode
   show: (c: Ctx) => boolean
 }[] = [
-  { to: '/', label: '概览', title: '概览', desc: '合同全局视图与统计', end: true, icon: ICONS.overview, show: () => true },
-  { to: '/contracts', label: '合同', title: '合同', desc: '全部合同与多维筛选', icon: ICONS.contract, show: () => true },
-  { to: '/reminders', label: '到期提醒', title: '到期提醒', desc: '即将到期与已逾期', icon: ICONS.bell, show: () => true },
-  { to: '/admin', label: '门店与账号', title: '门店与账号', desc: '门店与成员管理', icon: ICONS.users, show: (c) => c.isHq },
-  { to: '/audit', label: '审计日志', title: '审计日志', desc: '关键操作留痕', icon: ICONS.audit, show: (c) => c.can('audit.view') },
-  { to: '/settings', label: '设置', title: '设置', desc: '个人与系统设置', icon: ICONS.settings, show: () => true },
+  { to: '/', label: '概览', short: '概览', title: '概览', desc: '合同全局视图与统计', end: true, icon: ICONS.overview, show: () => true },
+  { to: '/contracts', label: '合同', short: '合同', title: '合同', desc: '全部合同与多维筛选', icon: ICONS.contract, show: () => true },
+  { to: '/reminders', label: '到期提醒', short: '提醒', title: '到期提醒', desc: '即将到期与已逾期', icon: ICONS.bell, show: () => true },
+  { to: '/admin', label: '门店与账号', short: '门店', title: '门店与账号', desc: '门店与成员管理', icon: ICONS.users, show: (c) => c.isHq },
+  { to: '/audit', label: '审计日志', short: '审计', title: '审计日志', desc: '关键操作留痕', icon: ICONS.audit, show: (c) => c.can('audit.view') },
+  { to: '/settings', label: '设置', short: '设置', title: '设置', desc: '个人与系统设置', icon: ICONS.settings, show: () => true },
 ]
+
+/** 底部标签栏固定展示这几项，其余（门店/审计等）收进「更多」 */
+const TAB_PATHS = ['/', '/contracts', '/reminders', '/settings']
 
 export default function Layout() {
   const { profile, isHq, signOut, user, can, loading } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [unread, setUnread] = useState(0)
-  const [drawer, setDrawer] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
 
   useEffect(() => {
     if (!user) return
@@ -101,10 +105,32 @@ export default function Layout() {
     }
   }, [user])
 
+  // 「更多」面板支持 Esc 关闭；打开时锁定背景滚动
+  useEffect(() => {
+    if (!moreOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMoreOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
+  }, [moreOpen])
+
   const items = NAV.filter((n) => n.show({ isHq, can }))
+  const primaryItems = TAB_PATHS.map((p) => items.find((n) => n.to === p)).filter(Boolean) as typeof items
+  const moreItems = items.filter((n) => !TAB_PATHS.includes(n.to))
   const active =
     items.find((n) => (n.to === '/' ? location.pathname === '/' : location.pathname.startsWith(n.to))) ??
     items[0]
+
+  // 移动端「更多」面板的账号区展示
+  const meName = profile?.full_name || user?.email || ''
+  const meInitial = meName.trim().slice(0, 1).toUpperCase() || '?'
+  const meRoleLabel = isHq ? '总部 · 全部门店' : profile?.store_id ? '门店账号' : '待分配门店'
 
   // 未分配：profile 不存在、角色未设置、或非总部账号但没有 store_id。
   const isUnassigned = !loading && (!profile || !profile.role || (profile.role !== 'hq' && !profile.store_id))
@@ -123,7 +149,7 @@ export default function Layout() {
       user={user}
       profile={profile}
       isHq={isHq}
-      onNavigate={() => setDrawer(false)}
+      onNavigate={() => setMoreOpen(false)}
       onSignOut={doSignOut}
     />
   )
@@ -133,24 +159,10 @@ export default function Layout() {
       {/* 桌面端：固定左侧栏 */}
       <div className="hidden md:fixed md:inset-y-0 md:left-0 md:z-40 md:block">{sidebar}</div>
 
-      {/* 移动端：顶部条 + 抽屉 */}
-      <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-slate-200 bg-white/90 px-4 py-3 backdrop-blur md:hidden">
-        <button
-          onClick={() => setDrawer(true)}
-          className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-100"
-          aria-label="打开菜单"
-        >
-          {ICONS.menu}
-        </button>
-        <Brand compact onClick={() => setDrawer(false)} />
+      {/* 移动端顶部条：仅品牌（导航改到底部标签栏，页面标题由下方 header 提供） */}
+      <div className="sticky top-0 z-30 flex items-center border-b border-slate-200 bg-white/90 px-4 py-2.5 backdrop-blur md:hidden">
+        <Brand compact onClick={() => setMoreOpen(false)} />
       </div>
-
-      {drawer && (
-        <div className="fixed inset-0 z-50 md:hidden">
-          <div className="absolute inset-0 bg-slate-900/40" onClick={() => setDrawer(false)} />
-          <div className="absolute inset-y-0 left-0 w-64 shadow-xl">{sidebar}</div>
-        </div>
-      )}
 
       {/* 主区域 */}
       <div className="md:pl-64">
@@ -167,7 +179,6 @@ export default function Layout() {
                   {active?.desc && <p className="truncate text-xs text-slate-400">{active.desc}</p>}
                 </div>
                 <div className="flex items-center gap-2">
-                  <ThemeSwitcher />
                   <Link
                     to="/reminders"
                     className="relative grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
@@ -183,12 +194,128 @@ export default function Layout() {
                 </div>
               </div>
             </header>
-            <main className="px-4 py-6 sm:px-6">
+            {/* pb 预留：移动端底部有标签栏 + 「安装到桌面 / 新版本」固定卡片与 Toast，避免遮挡最后一条内容 */}
+            <main className="px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-6 sm:px-6 md:pb-6">
               <Outlet />
             </main>
           </>
         )}
       </div>
+
+      {/* 移动端底部标签栏：主菜单常驻可见，其余项收进「更多」抽屉 */}
+      {!isUnassigned && (
+        <nav
+          aria-label="主导航"
+          className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur md:hidden"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        >
+          <div className="flex items-stretch">
+            {primaryItems.map((n) => {
+              const isCurrent =
+                n.to === '/' ? location.pathname === '/' : location.pathname.startsWith(n.to)
+              return (
+                <NavLink
+                  key={n.to}
+                  to={n.to}
+                  end={n.end}
+                  onClick={() => setMoreOpen(false)}
+                  className={`relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition ${
+                    isCurrent ? 'text-[var(--brand)]' : 'text-slate-500'
+                  }`}
+                >
+                  {n.icon}
+                  <span>{n.short}</span>
+                  {n.to === '/reminders' && unread > 0 && (
+                    <span className="absolute right-1/2 top-0.5 grid h-4 min-w-[16px] -translate-x-1/2 translate-x-4 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-medium leading-4 text-white">
+                      {unread > 99 ? '99+' : unread}
+                    </span>
+                  )}
+                </NavLink>
+              )
+            })}
+            <button
+              type="button"
+              onClick={() => setMoreOpen(true)}
+              className={`relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition ${
+                moreOpen ? 'text-[var(--brand)]' : 'text-slate-500'
+              }`}
+            >
+              {ICONS.menu}
+              <span>更多</span>
+            </button>
+          </div>
+        </nav>
+      )}
+
+      {/* 移动端「更多」面板：账号 + 退出登录 + 未进标签栏的次要功能 */}
+      {moreOpen && !isUnassigned && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div className="absolute inset-0 bg-slate-900/40" onClick={() => setMoreOpen(false)} />
+          <div
+            className="absolute inset-x-0 bottom-0 rounded-t-2xl bg-white shadow-2xl"
+            style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+          >
+            <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-slate-200" />
+
+            <div className="flex items-center gap-3 px-4 py-3.5">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[var(--brand)] text-sm font-medium text-white">
+                {meInitial}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium text-slate-800">{meName || '未登录'}</div>
+                <div className="truncate text-[11px] text-slate-400">{meRoleLabel}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setMoreOpen(false); doSignOut() }}
+                className="shrink-0 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700"
+              >
+                退出登录
+              </button>
+            </div>
+
+            {moreItems.length > 0 && (
+              <div className="border-t border-slate-100 px-2 py-2">
+                <div className="px-2 py-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                  其他功能
+                </div>
+                {moreItems.map((n) => {
+                  const isCurrent =
+                    n.to === '/' ? location.pathname === '/' : location.pathname.startsWith(n.to)
+                  return (
+                    <NavLink
+                      key={n.to}
+                      to={n.to}
+                      end={n.end}
+                      onClick={() => setMoreOpen(false)}
+                      className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition ${
+                        isCurrent
+                          ? 'bg-[var(--brand-soft)] font-medium text-[var(--brand-strong)]'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className={isCurrent ? 'text-[var(--brand)]' : 'text-slate-400'}>{n.icon}</span>
+                      <span className="flex-1">{n.label}</span>
+                      <span className="text-xs text-slate-300">›</span>
+                    </NavLink>
+                  )
+                })}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2.5 text-xs text-slate-400">
+              <span>合同云 v{__APP_VERSION__}</span>
+              <button
+                type="button"
+                onClick={() => setMoreOpen(false)}
+                className="px-2 py-1 text-slate-500"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

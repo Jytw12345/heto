@@ -92,7 +92,7 @@ export function FloatingModal({
   const dragRef = useRef<{ dx: number; dy: number } | null>(null)
   const resizeRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null)
 
-  // 打开时居中 + 按视口收敛尺寸
+  // 打开时居中 + 按视口收敛尺寸；窄屏（< 640px）直接全屏，拖拽/缩放在手机上无意义
   useEffect(() => {
     if (!open) return
     const w = Math.min(initialWidth, window.innerWidth - 32)
@@ -102,7 +102,7 @@ export function FloatingModal({
       x: Math.max(16, (window.innerWidth - w) / 2),
       y: Math.max(16, (window.innerHeight - h) / 2),
     })
-    setMaximized(false)
+    setMaximized(window.innerWidth < 640)
   }, [open, initialWidth, initialHeight])
 
   // Esc 关闭
@@ -142,8 +142,11 @@ export function FloatingModal({
   }
   function moveResize(e: ReactPointerEvent) {
     if (!resizeRef.current) return
-    const w = Math.max(minWidth, Math.min(window.innerWidth, resizeRef.current.w + (e.clientX - resizeRef.current.x)))
-    const h = Math.max(minHeight, Math.min(window.innerHeight, resizeRef.current.h + (e.clientY - resizeRef.current.y)))
+    // 最小尺寸同时受视口约束，避免窄屏上拖出横向溢出
+    const floorW = Math.min(minWidth, window.innerWidth - 24)
+    const floorH = Math.min(minHeight, window.innerHeight - 24)
+    const w = Math.max(floorW, Math.min(window.innerWidth, resizeRef.current.w + (e.clientX - resizeRef.current.x)))
+    const h = Math.max(floorH, Math.min(window.innerHeight, resizeRef.current.h + (e.clientY - resizeRef.current.y)))
     setSize({ w, h })
   }
   function endResize(e: ReactPointerEvent) {

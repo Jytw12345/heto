@@ -31,6 +31,50 @@ export function initThemeInlineScript(): string {
   return `(function(){try{var t=localStorage.getItem('${STORAGE_KEY}')||'orange';var ok=['orange','violet','blue','emerald','slate'];if(!ok.includes(t))t='orange';document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="theme-color"]');if(m){var c={orange:'#F97316',violet:'#7C3AED',blue:'#2563EB',emerald:'#059669',slate:'#475569'}[t];m.content=c;}}catch(e){}})();`
 }
 
+/**
+ * 设置页用的主题选择器：带名称的色块按钮。
+ * 全局 header 不再放色点（每个页面都出现属于重复），统一收进设置页一处修改。
+ */
+export function ThemePicker() {
+  const [active, setActive] = useState<ThemeKey>(() => getStoredTheme())
+
+  useEffect(() => {
+    applyTheme(active)
+  }, [active])
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {THEMES.map((t) => {
+        const isActive = active === t.key
+        return (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setActive(t.key)}
+            aria-pressed={isActive}
+            className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition ${
+              isActive
+                ? 'border-[var(--brand)] bg-[var(--brand-soft)] font-medium text-slate-800'
+                : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <span
+              className="h-4 w-4 shrink-0 rounded-full ring-1 ring-black/10"
+              style={{ backgroundColor: t.color }}
+            />
+            <span>{t.label}</span>
+            {isActive && (
+              <svg className="h-3.5 w-3.5 text-[var(--brand-strong)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 export function ThemeSwitcher({ className = '' }: { className?: string }) {
   const [active, setActive] = useState<ThemeKey>(() => getStoredTheme())
 

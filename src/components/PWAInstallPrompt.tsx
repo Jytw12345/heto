@@ -119,7 +119,7 @@ export default function PWAInstallPrompt() {
   return (
     <>
       {updateReady && (
-        <div className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-lg rounded-xl border border-emerald-200 bg-white p-4 shadow-lg sm:bottom-6 sm:left-auto sm:right-6 sm:w-80 sm:p-3">
+        <div className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom))] left-4 right-4 z-50 mx-auto max-w-lg rounded-xl border border-emerald-200 bg-white p-4 shadow-lg md:bottom-6 md:left-auto md:right-6 md:w-80 md:p-3">
           <div className="flex items-start gap-3">
             <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-emerald-600 text-sm font-medium text-white">
               新
@@ -149,7 +149,7 @@ export default function PWAInstallPrompt() {
       )}
 
       {showInstall && (
-        <div className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-lg rounded-xl border border-[var(--brand)]/20 bg-white p-4 shadow-lg sm:bottom-6 sm:left-auto sm:right-6 sm:w-80 sm:p-3">
+        <div className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom))] left-4 right-4 z-50 mx-auto max-w-lg rounded-xl border border-[var(--brand)]/20 bg-white p-4 shadow-lg md:bottom-6 md:left-auto md:right-6 md:w-80 md:p-3">
           <div className="flex items-start gap-3">
             <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[var(--brand)] text-sm font-medium text-white">
               合

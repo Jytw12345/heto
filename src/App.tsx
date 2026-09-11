@@ -46,7 +46,11 @@ export default function App() {
   return (
     <AuthProvider>
       <ToastProvider>
-        <BrowserRouter basename={basename || undefined}>
+        {/* future flags：提前对齐 React Router v7 行为，消除控制台的 future flag 警告 */}
+        <BrowserRouter
+          basename={basename || undefined}
+          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        >
           <PWAInstallPrompt />
           <Routes>
             <Route path="/login" element={<HomeGate />} />

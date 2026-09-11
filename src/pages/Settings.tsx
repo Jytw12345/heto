@@ -5,6 +5,7 @@ import { useToast } from '../components/Toast'
 import { useAuth } from '../hooks/useAuth'
 import { checkPassword } from '../lib/password'
 import { checkForUpdate } from '../lib/pwa'
+import { ThemePicker } from '../components/ThemeSwitcher'
 import { shortEntity } from '../lib/format'
 import type {
   NotifChannel,
@@ -193,7 +194,7 @@ export default function Settings() {
                         {c.url}
                       </span>
                     </div>
-                    <Button variant="ghost" className="shrink-0 opacity-60 group-hover:opacity-100" onClick={() => setChannelModal(c)}>
+                    <Button variant="ghost" className="shrink-0 md:opacity-60 md:group-hover:opacity-100" onClick={() => setChannelModal(c)}>
                       编辑
                     </Button>
                   </li>
@@ -231,7 +232,7 @@ export default function Settings() {
                       </span>
                       {!r.active && <span className="shrink-0 text-xs text-slate-400">· 已停用</span>}
                     </div>
-                    <Button variant="ghost" className="shrink-0 opacity-60 group-hover:opacity-100" onClick={() => setRuleModal(r)}>
+                    <Button variant="ghost" className="shrink-0 md:opacity-60 md:group-hover:opacity-100" onClick={() => setRuleModal(r)}>
                       编辑
                     </Button>
                   </li>
@@ -346,6 +347,16 @@ export default function Settings() {
             </div>
           </Card>
         )}
+
+        <Card
+          title="主题配色"
+          extra={<span className="text-xs text-slate-400">仅影响当前浏览器</span>}
+        >
+          <ThemePicker />
+          <p className="mt-2 text-xs leading-relaxed text-slate-400">
+            品牌色会同步应用到侧栏高亮、按钮、统计卡与图表，刷新后保持。
+          </p>
+        </Card>
 
         <Card title="关于" extra={<span className="text-xs text-slate-400">PWA 版本与更新</span>}>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

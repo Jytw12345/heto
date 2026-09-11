@@ -570,7 +570,7 @@ function TemplatePermModal({
                     <button
                       type="button"
                       onClick={() => toggle(p.key)}
-                      className={`h-7 w-12 rounded-md border text-xs transition ${
+                      className={`h-9 w-12 rounded-md border text-xs transition md:h-7 ${
                         perms[p.key]
                           ? 'border-emerald-500 bg-emerald-500 text-white'
                           : 'border-red-300 bg-red-50 text-red-600'
@@ -621,7 +621,7 @@ function BitBtn({
       title={title}
       onClick={onClick}
       type="button"
-      className={`h-7 w-9 rounded-md border text-xs transition ${cls}`}
+      className={`h-9 w-11 rounded-md border text-xs transition md:h-7 md:w-9 ${cls}`}
     >
       {children}
     </button>

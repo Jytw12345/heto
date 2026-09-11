@@ -570,7 +570,31 @@ export default function Audit() {
                             {dayLabel(l.created_at)}
                           </li>
                         )}
-                        <li className="grid grid-cols-12 items-center gap-2 px-3 py-2 text-xs">
+                        <li className="grid grid-cols-1 gap-2 px-3 py-2 text-xs md:hidden">
+                          <div className="flex items-center justify-between gap-2">
+                            <span
+                              className="truncate rounded bg-slate-100 px-1.5 py-0.5 text-slate-700"
+                              title={l.action}
+                            >
+                              {translateAction(l.action)}
+                            </span>
+                            <span className="shrink-0 font-mono text-slate-400">
+                              {formatDate(l.created_at, true)}
+                            </span>
+                          </div>
+                          <div className="space-y-0.5 text-slate-500">
+                            <div className="truncate" title={l.resource_id ?? undefined}>
+                              资源：{resourceDisplay(l)}
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="truncate" title={l.actor_email ?? undefined}>
+                                操作人：{actorLabel(l, actorMap)}
+                              </span>
+                              {l.ip && <span className="shrink-0 font-mono text-slate-400">{l.ip}</span>}
+                            </div>
+                          </div>
+                        </li>
+                        <li className="hidden grid-cols-12 items-center gap-2 px-3 py-2 text-xs md:grid">
                           <span className="col-span-3 font-mono text-slate-400">
                             {formatDate(l.created_at, true)}
                           </span>
