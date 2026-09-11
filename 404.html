@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#F97316" />
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('app-theme') || 'orange'
+          var ok = ['orange', 'violet', 'blue', 'emerald', 'slate']
+          if (!ok.includes(t)) t = 'orange'
+          document.documentElement.dataset.theme = t
+          var m = document.querySelector('meta[name="theme-color"]')
+          if (m) {
+            m.content = { orange: '#F97316', violet: '#7C3AED', blue: '#2563EB', emerald: '#059669', slate: '#475569' }[t]
+          }
+        } catch (e) {}
+      })()
+    </script>
+    <link rel="manifest" href="/heto/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="合同云" />
+    <meta name="application-name" content="合同云" />
+    <link rel="apple-touch-icon" href="/heto/icons/appicon-192.png" />
+    <title>合同云 · 合同管理</title>
+    <script type="module" crossorigin src="/heto/assets/index-BRL5nQ85.js"></script>
+    <link rel="stylesheet" crossorigin href="/heto/assets/index-SmJR8v29.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
