@@ -1,4 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { ContextMenuProvider } from './components/ContextMenu'
 import type { ReactNode } from 'react'
 import { AuthProvider, useAuth } from './hooks/useAuth'
 import { ToastProvider } from './components/Toast'
@@ -46,6 +47,7 @@ export default function App() {
   return (
     <AuthProvider>
       <ToastProvider>
+        <ContextMenuProvider>
         {/* future flags：提前对齐 React Router v7 行为，消除控制台的 future flag 警告 */}
         <BrowserRouter
           basename={basename || undefined}
@@ -86,6 +88,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
+        </ContextMenuProvider>
       </ToastProvider>
     </AuthProvider>
   )

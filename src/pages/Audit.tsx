@@ -2,6 +2,8 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { Card, Empty, inputClsInline } from '../components/ui'
 import { useStores } from '../hooks/useStores'
+import { useToast } from '../components/Toast'
+import { copyText, useContextMenu, type MenuItem } from '../components/ContextMenu'
 import { formatDate } from '../lib/format'
 import type { AuditLog } from '../types'
 
@@ -119,6 +121,8 @@ export default function Audit() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const stores = useStores()
+  const { push } = useToast()
+  const ctx = useContextMenu()
   const [q, setQ] = useState('')
   const [actionGroup, setActionGroup] = useState('')
   const [resourceFilter, setResourceFilter] = useState('')
@@ -391,6 +395,32 @@ export default function Audit() {
     ;(grouped[g] ||= []).push(l)
   }
 
+  /** 右键 / 长按「日志行」的菜单：筛选 + 复制，比原生菜单实用 */
+  function logMenu(l: AuditLog): MenuItem[] {
+    const group = ACTION_GROUPS.find((g) => g.match.test(l.action))?.label
+    const copy = async (label: string, text: string) => {
+      const ok = await copyText(text)
+      push(ok ? `已复制${label}` : '复制失败', ok ? 'ok' : 'err')
+    }
+    return [
+      { label: '只看该操作人', disabled: !l.actor_id, onSelect: () => setActorFilter(l.actor_id!) },
+      { label: '只看该资源', disabled: !l.resource, onSelect: () => setResourceFilter(l.resource!) },
+      { label: '只看该动作', disabled: !group, onSelect: () => group && setActionGroup(group) },
+      { type: 'separator' },
+      {
+        label: '复制操作人',
+        disabled: !l.actor_id,
+        onSelect: () => copy('操作人', actorLabel(l, actorMap)),
+      },
+      {
+        label: '复制资源 ID',
+        disabled: !l.resource_id,
+        onSelect: () => copy('资源 ID', l.resource_id ?? ''),
+      },
+      { label: '复制 IP', disabled: !l.ip, onSelect: () => copy('IP', l.ip ?? '') },
+    ]
+  }
+
   function resourceDisplay(l: AuditLog): string {
     if (!l.resource) return '—'
     const name = resourceNames[resKey(l.resource, l.resource_id)]
@@ -570,7 +600,7 @@ export default function Audit() {
                             {dayLabel(l.created_at)}
                           </li>
                         )}
-                        <li className="grid grid-cols-1 gap-2 px-3 py-2 text-xs md:hidden">
+                        <li {...ctx(logMenu(l))} className="grid grid-cols-1 gap-2 px-3 py-2 text-xs md:hidden">
                           <div className="flex items-center justify-between gap-2">
                             <span
                               className="truncate rounded bg-slate-100 px-1.5 py-0.5 text-slate-700"
@@ -594,7 +624,7 @@ export default function Audit() {
                             </div>
                           </div>
                         </li>
-                        <li className="hidden grid-cols-12 items-center gap-2 px-3 py-2 text-xs md:grid">
+                        <li {...ctx(logMenu(l))} className="hidden grid-cols-12 items-center gap-2 px-3 py-2 text-xs md:grid">
                           <span className="col-span-3 font-mono text-slate-400">
                             {formatDate(l.created_at, true)}
                           </span>

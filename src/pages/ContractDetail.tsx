@@ -6,6 +6,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useStores } from '../hooks/useStores'
 import { Button, Card, Empty, FileGlyph, FloatingModal, Pill, StatusBadge } from '../components/ui'
 import { useToast } from '../components/Toast'
+import { copyText, useContextMenu, type MenuItem } from '../components/ContextMenu'
 import FileUploader from '../components/FileUploader'
 import ContractForm from './ContractForm'
 import { daysLeft, dueLevel, formatBytes, formatDate, formatMoney } from '../lib/format'
@@ -159,6 +160,29 @@ export default function ContractDetail() {
         // ignore 后续
       }
     }
+  }
+
+  const ctx = useContextMenu()
+
+  /** 右键 / 长按「附件条目」的菜单 */
+  function fileMenu(f: ContractFile): MenuItem[] {
+    const items: MenuItem[] = [
+      { label: '预览', onSelect: () => openPreview(f) },
+      { label: '下载', onSelect: () => handleDownload(f) },
+      { type: 'separator' },
+      {
+        label: '复制文件名',
+        onSelect: async () => {
+          const ok = await copyText(f.file_name)
+          push(ok ? '已复制文件名' : '复制失败', ok ? 'ok' : 'err')
+        },
+      },
+    ]
+    if (can('file.delete')) {
+      items.push({ type: 'separator' })
+      items.push({ label: '删除附件', danger: true, onSelect: () => handleDelete(f) })
+    }
+    return items
   }
 
   const totalSize = files.reduce((s, f) => s + f.size_bytes, 0)
@@ -330,6 +354,7 @@ export default function ContractDetail() {
                   {files.map((f) => (
                     <li
                       key={f.id}
+                      {...ctx(fileMenu(f))}
                       className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-slate-200 p-2.5 transition hover:border-[var(--brand)]/40 hover:bg-[var(--brand)]/5 print:hover:bg-transparent"
                     >
                       <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md bg-slate-100">

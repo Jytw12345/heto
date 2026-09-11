@@ -10,6 +10,7 @@ import { useStores } from '../hooks/useStores'
 import { daysLeft, dueLevel, formatBytes, formatDate, formatMoney, shortEntity } from '../lib/format'
 import { CATEGORIES, STATUS_LABEL, type Contract, type ContractFile, type ContractStatus } from '../types'
 import { createViewUrl, downloadFile } from '../lib/storage'
+import { copyText, useContextMenu, type MenuItem } from '../components/ContextMenu'
 
 const STATUS_OPTIONS: { v: ContractStatus | 'all'; l: string }[] = [
   { v: 'all', l: '全部' },
@@ -286,6 +287,48 @@ export default function Contracts() {
     }
   }
 
+  const ctx = useContextMenu()
+
+  /** 复制并给出 toast 反馈 */
+  async function doCopy(label: string, text: string) {
+    const ok = await copyText(text)
+    push(ok ? `已复制${label}` : '复制失败', ok ? 'ok' : 'err')
+  }
+
+  /** 右键 / 长按「合同行」的菜单：按当前账号权限动态生成 */
+  function contractMenu(c: Contract): MenuItem[] {
+    const items: MenuItem[] = [
+      { label: '打开详情', onSelect: () => navigate(`/contracts/${c.id}`) },
+      { label: '编辑合同', onSelect: () => { setEditing(c); setFormOpen(true) } },
+      { label: '查看附件', onSelect: () => openAttachments(c) },
+      { type: 'separator' },
+      {
+        label: '复制合同名称',
+        onSelect: () => doCopy('合同名称', c.title),
+      },
+      {
+        label: '复制合同编号',
+        disabled: !c.contract_no,
+        onSelect: () => doCopy('合同编号', c.contract_no ?? ''),
+      },
+    ]
+    if (can('contract.delete')) {
+      items.push({ type: 'separator' })
+      items.push({ label: '删除合同', danger: true, onSelect: () => setConfirmDelete(c) })
+    }
+    return items
+  }
+
+  /** 右键 / 长按「附件条目」的菜单 */
+  function fileMenu(f: ContractFile): MenuItem[] {
+    return [
+      { label: '预览', onSelect: () => attPreviewFile(f) },
+      { label: '下载', onSelect: () => attDownload(f) },
+      { type: 'separator' },
+      { label: '复制文件名', onSelect: () => doCopy('文件名', f.file_name) },
+    ]
+  }
+
   const allChecked = filtered.length > 0 && filtered.every((r) => selected.has(r.id))
   const someChecked = selected.size > 0
 
@@ -446,6 +489,7 @@ export default function Contracts() {
               return (
                 <article
                   key={c.id}
+                  {...ctx(contractMenu(c))}
                   className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"
                 >
                   <div className="flex items-start gap-2.5">
@@ -565,7 +609,7 @@ export default function Contracts() {
                 {filtered.map((c) => {
                   const lv = c.status === 'active' ? dueLevel(daysLeft(c.end_at)) : null
                   return (
-                    <tr key={c.id} className="transition hover:bg-[var(--brand)]/5">
+                    <tr key={c.id} {...ctx(contractMenu(c))} className="transition hover:bg-[var(--brand)]/5">
                       <td className="py-2 text-center">
                         <input
                           type="checkbox"
@@ -705,6 +749,7 @@ export default function Contracts() {
             {attFiles.map((f) => (
               <li
                 key={f.id}
+                {...ctx(fileMenu(f))}
                 className="flex items-center gap-3 rounded-lg border border-slate-200 p-2.5 transition hover:border-[var(--brand)]/40 hover:bg-[var(--brand)]/5"
               >
                 <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md bg-slate-100">

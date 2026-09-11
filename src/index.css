@@ -56,6 +56,11 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* 绑定了自定义右键/长按菜单的元素：抑制 iOS Safari 的长按「复制/查询」气泡 */
+[data-ctx-menu] {
+  -webkit-touch-callout: none;
+}
+
 /* 全局细微径向渐变底，营造层次而非单调灰底。使用 var(--brand-soft) 让背景色随主题切换 */
 .app-bg {
   background-color: #f8fafc;
