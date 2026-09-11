@@ -43,8 +43,9 @@ export default function Layout() {
 
   const items = NAV.filter((n) => n.show({ isHq, can }))
 
-  // 未分配：profile 还没建立（新注册），或角色未设置（待分配）。loading 期间不误判。
-  const isUnassigned = !loading && (!profile || !(profile as { role?: string }).role)
+  // 未分配：profile 不存在、角色未设置、或非总部账号但没有 store_id。
+  // 任何 store 角色且未绑定门店的账号，都不允许进入业务界面，避免看到全局数据。
+  const isUnassigned = !loading && (!profile || !profile.role || (profile.role !== 'hq' && !profile.store_id))
 
   return (
     <div className="min-h-screen bg-slate-50">

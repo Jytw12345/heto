@@ -29,7 +29,7 @@ const CHANNEL_DOC: Record<NotifChannelConfig['kind'], string> = {
 }
 
 export default function Settings() {
-  const { user, profile, refreshProfile, can } = useAuth()
+  const { user, profile, refreshProfile, can, isHq } = useAuth()
   const { push } = useToast()
 
   const [profileForm, setProfileForm] = useState({
@@ -46,15 +46,17 @@ export default function Settings() {
   const [entityName, setEntityName] = useState('')
 
   const load = useCallback(async () => {
-    const [{ data: c }, { data: r }, { data: e }] = await Promise.all([
+    const [{ data: c }, { data: r }] = await Promise.all([
       supabase.from('notification_channels').select('*').order('created_at', { ascending: false }),
       supabase.from('reminder_rules').select('*').order('created_at', { ascending: false }),
-      supabase.from('our_entities').select('*').order('name'),
     ])
     setChannels((c as NotifChannelConfig[]) ?? [])
     setRules((r as ReminderRule[]) ?? [])
-    setEntities((e as OurEntity[]) ?? [])
-  }, [])
+    if (isHq) {
+      const { data: e } = await supabase.from('our_entities').select('*').order('name')
+      setEntities((e as OurEntity[]) ?? [])
+    }
+  }, [isHq])
 
   useEffect(() => {
     setProfileForm({
@@ -102,7 +104,7 @@ export default function Settings() {
   return (
     <div className="space-y-4">
       <Card title="个人资料">
-        <form onSubmit={saveProfile} className="grid gap-4 sm:grid-cols-2">
+        <form onSubmit={saveProfile} className="grid max-w-xl sm:max-w-4xl gap-4 grid-cols-2 sm:grid-cols-5">
           <Field label="登录邮箱">
             <input className={inputCls} value={user?.email ?? ''} disabled />
           </Field>
@@ -127,7 +129,7 @@ export default function Settings() {
               onChange={(e) => setProfileForm({ ...profileForm, wechat: e.target.value })}
             />
           </Field>
-          <div className="sm:col-span-2 flex justify-end gap-2">
+          <div className="col-span-2 sm:col-span-1 flex flex-wrap items-end justify-end gap-2">
             <Button onClick={() => setPasswordOpen(true)}>修改密码</Button>
             <Button type="submit" variant="primary">保存</Button>
           </div>
@@ -214,8 +216,9 @@ export default function Settings() {
         </Card>
       )}
 
-      <Card title="我方主体" extra={<span className="text-xs text-slate-400">合同「我方主体」可选列表，可增删</span>}>
-        {entities.length === 0 ? (
+      {isHq && (
+        <Card title="我方主体" extra={<span className="text-xs text-slate-400">合同「我方主体」可选列表，可增删</span>}>
+          {entities.length === 0 ? (
           <Empty text="还没有我方主体" />
         ) : (
           <div className="flex flex-wrap gap-2">
@@ -252,6 +255,7 @@ export default function Settings() {
           <Button variant="primary" onClick={addEntity}>添加</Button>
         </div>
       </Card>
+      )}
 
       {passwordOpen && <PasswordModal onClose={() => setPasswordOpen(false)} />}
       {channelModal && (

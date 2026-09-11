@@ -344,7 +344,7 @@ export default function Contracts() {
                 <col className="w-[100px]" />
                 <col className="w-[148px]" />
                 <col className="w-[88px]" />
-                <col className="w-[104px]" />
+                <col className="w-[120px]" />
               </colgroup>
               <thead className="bg-gradient-to-b from-slate-50 to-slate-50/70 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
@@ -414,18 +414,18 @@ export default function Contracts() {
                       <td className="px-2 py-1.5">
                         <StatusBadge status={c.status} />
                       </td>
-                      <td className="px-2 py-2 text-right">
-                        <div className="flex justify-end gap-1">
+                      <td className="whitespace-nowrap px-2 py-2 text-right">
+                        <div className="flex flex-nowrap items-center justify-end gap-1">
                           <button
                             onClick={() => { setEditing(c); setFormOpen(true) }}
-                            className="rounded px-2.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100"
+                            className="whitespace-nowrap rounded px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
                           >
                             编辑
                           </button>
                           {can('contract.delete') && (
                             <button
                               onClick={() => setConfirmDelete(c)}
-                              className="rounded px-2.5 py-1.5 text-xs text-red-600 hover:bg-red-50"
+                              className="whitespace-nowrap rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50"
                             >
                               删除
                             </button>

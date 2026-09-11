@@ -1,11 +1,12 @@
 // ============================================================
 // 细粒度权限模型
 // ------------------------------------------------------------
-// role 是粗粒度（hq / store）；permissions JSONB 是细粒度覆盖。
+// role 是粗粒度数据范围（hq 看全门店 / store 只看本店）；
+// position_template 是职能默认权限包；permissions JSONB 是逐人覆盖。
 //
 // 解析规则：
-//   1. HQ 默认全权
-//   2. 门店账号默认按 DEFAULT_STORE_PERMS
+//   1. 若账号绑定了职务模板，则以该模板权限为「基础默认」
+//   2. 否则按 role 默认（HQ 全权 / 门店按 DEFAULT_STORE_PERMS）
 //   3. profiles.permissions 里显式 true/false 的，覆盖上面默认值
 //      （true = 额外允许；false = 收回默认权限）
 // ============================================================
@@ -54,12 +55,18 @@ export const DEFAULT_STORE_PERMS: Record<PermKey, boolean> = {
   'tag.manage': true,
 }
 
-/** 解析某账号的最终权限 */
-export function resolvePerms(profile: Profile | null): Record<PermKey, boolean> {
+/** 解析某账号的最终权限。
+ *  @param templatePerms 该账号所绑定的职务模板权限（作为基础默认），可选
+ */
+export function resolvePerms(
+  profile: Profile | null,
+  templatePerms?: Permissions,
+): Record<PermKey, boolean> {
   if (!profile) return {} as Record<PermKey, boolean>
   if (!profile.active) return {} as Record<PermKey, boolean>
-  const base: Record<PermKey, boolean> =
-    profile.role === 'hq'
+  const base: Record<PermKey, boolean> = templatePerms
+    ? { ...DEFAULT_STORE_PERMS, ...templatePerms }
+    : profile.role === 'hq'
       ? { ...DEFAULT_HQ_PERMS }
       : { ...DEFAULT_STORE_PERMS }
   const over = profile.permissions || {}

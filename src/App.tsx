@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { AuthProvider, useAuth } from './hooks/useAuth'
 import { ToastProvider } from './components/Toast'
 import Layout from './components/Layout'
+import PWAInstallPrompt from './components/PWAInstallPrompt'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Contracts from './pages/Contracts'
@@ -46,6 +47,7 @@ export default function App() {
     <AuthProvider>
       <ToastProvider>
         <BrowserRouter basename={basename || undefined}>
+          <PWAInstallPrompt />
           <Routes>
             <Route path="/login" element={<HomeGate />} />
             <Route

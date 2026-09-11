@@ -181,7 +181,7 @@ export default function ContractDetail() {
 
       {/* 顶部 Hero 概览卡：标题 + 元数据条 + 金额 hero + 操作 */}
       <div className="rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm print:border-slate-300 print:shadow-none">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-xl font-semibold text-slate-900">{c.title}</h1>
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
@@ -196,9 +196,9 @@ export default function ContractDetail() {
             </div>
           </div>
           {/* 金额 hero + 操作按钮：手机纵向堆叠、左对齐、按钮全宽 */}
-          <div className="flex flex-col gap-3 lg:items-end">
+          <div className="flex flex-col gap-3 sm:items-end">
             {showAmount && c.amount != null && (
-              <div className="text-left leading-none lg:text-right">
+              <div className="text-left leading-none sm:text-right">
                 <div className="text-[11px] uppercase tracking-wide text-slate-400">合同金额</div>
                 <div className="mt-1 text-3xl font-semibold text-indigo-600 tabular-nums">
                   {formatMoney(c.amount)}
@@ -269,7 +269,7 @@ export default function ContractDetail() {
       </Card>
 
       {/* 底部双栏 50:50：状态历史 + 扫描件 */}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2">
         <Card title="状态历史" className="print:break-inside-avoid">
           {history.length === 0 ? (
             <Empty text="暂无状态变更记录" />

@@ -1,16 +1,90 @@
-import { Fragment, useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { Card, Empty, Field, inputCls } from '../components/ui'
 import { formatDate } from '../lib/format'
 import type { AuditLog } from '../types'
 
 const ACTION_GROUPS: { label: string; match: RegExp }[] = [
-  { label: '登录 / 账号', match: /^(login|logout|profile\.|password)/ },
+  { label: '登录 / 账号', match: /^(login|logout|profile\.|password|position)/ },
   { label: '合同', match: /^contract\./ },
   { label: '文件', match: /^(file|cos)/ },
   { label: '门店 / 渠道 / 提醒', match: /^(store|channel|reminder)/ },
   { label: '审计 / 系统', match: /^audit\.|\.system/ },
 ]
+
+// 动作类型 → 中文名
+const ACTION_LABEL: Record<string, string> = {
+  login: '登录',
+  logout: '登出',
+  'profile.update': '更新账号',
+  'profile.update.self': '更新本人资料',
+  'profile.create': '创建账号',
+  'profile.delete': '删除账号',
+  'position_template.create': '创建职务模板',
+  'position_template.update': '更新职务模板',
+  'position_template.delete': '删除职务模板',
+  'password.change': '修改密码',
+  'password.reset': '重置密码',
+  'contract.create': '创建合同',
+  'contract.update': '更新合同',
+  'contract.delete': '删除合同',
+  'contract.renew': '续签合同',
+  'contract.status_change': '合同状态变更',
+  'file.upload': '上传文件',
+  'file.download': '下载文件',
+  'file.delete': '删除文件',
+  'file.preview': '预览文件',
+  'cos.sts': '获取上传凭证',
+  'cos.signed_url': '生成下载链接',
+  'store.create': '创建门店',
+  'store.update': '更新门店',
+  'store.delete': '删除门店',
+  'channel.create': '创建通知渠道',
+  'channel.update': '更新通知渠道',
+  'channel.delete': '删除通知渠道',
+  'channel.test': '测试通知渠道',
+  'reminder.create': '创建提醒规则',
+  'reminder.update': '更新提醒规则',
+  'reminder.delete': '删除提醒规则',
+  'reminder.fire': '触发提醒',
+  'audit.export': '导出审计日志',
+  'system.cleanup': '系统清理',
+  'system.migration': '系统迁移',
+}
+
+// 资源类型 → 中文名
+const RESOURCE_LABEL: Record<string, string> = {
+  profile: '账号',
+  contract: '合同',
+  file: '文件',
+  store: '门店',
+  channel: '通知渠道',
+  reminder: '提醒规则',
+  position_template: '职务模板',
+  audit: '审计日志',
+  cos: '对象存储',
+  system: '系统',
+}
+
+function translateAction(action: string): string {
+  return ACTION_LABEL[action] ?? action
+}
+
+function translateResource(resource: string | null): string {
+  if (!resource) return ''
+  return RESOURCE_LABEL[resource] ?? resource
+}
+
+function actorLabel(log: AuditLog, actorMap: Record<string, string>): string {
+  if (!log.actor_id && !log.actor_email) return 'system'
+  if (log.actor_id && actorMap[log.actor_id]) return actorMap[log.actor_id]
+  return log.actor_email ?? '未知用户'
+}
+
+// 资源 ID → 可读名称的 key
+function resKey(resource: string | null, id: string | null): string {
+  return `${resource ?? ''}:${id ?? ''}`
+}
 
 // 日期分隔条：把跨多天的日志按"今天 / 昨天 / 年月日"分段，避免混成一段难扫读
 function dayKey(d: string): string {
@@ -30,10 +104,111 @@ function dayLabel(d: string): string {
 
 export default function Audit() {
   const [logs, setLogs] = useState<AuditLog[]>([])
+  const [actorMap, setActorMap] = useState<Record<string, string>>({})
+  const [resourceNames, setResourceNames] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [q, setQ] = useState('')
   const [actionFilter, setActionFilter] = useState('')
+
+  const loadResourceNames = useCallback(async (list: AuditLog[]) => {
+    const idsByType: Record<string, string[]> = {}
+    for (const l of list) {
+      if (!l.resource || !l.resource_id) continue
+      ;(idsByType[l.resource] ||= []).push(l.resource_id)
+    }
+    const names: Record<string, string> = {}
+
+    const fetchInBatches = async <T extends Record<string, unknown>>(
+      table: string,
+      ids: string[],
+      query: string,
+      formatter: (row: T) => { key: string; name: string } | null,
+    ) => {
+      const uniqueIds = Array.from(new Set(ids)).filter(Boolean)
+      if (uniqueIds.length === 0) return
+      // Supabase .in() 长度无硬性上限，但 500 条以内一次性查更安全
+      const { data, error: err } = await supabase.from(table).select(query).in('id', uniqueIds)
+      if (err) {
+        console.warn(`[Audit] 加载 ${table} 名称失败:`, err.message)
+        return
+      }
+      ;((data ?? []) as unknown as T[]).forEach((row) => {
+        const item = formatter(row)
+        if (item) names[item.key] = item.name
+      })
+    }
+
+    await Promise.all([
+      fetchInBatches(
+        'profiles',
+        idsByType['profile'] ?? [],
+        'id, full_name, email',
+        (row: { id: string; full_name: string | null; email?: string | null }) => ({
+          key: resKey('profile', row.id),
+          name: row.full_name || row.email || '未命名账号',
+        }),
+      ),
+      fetchInBatches(
+        'contracts',
+        idsByType['contract'] ?? [],
+        'id, title',
+        (row: { id: string; title: string | null }) => ({
+          key: resKey('contract', row.id),
+          name: row.title || row.id.slice(0, 8),
+        }),
+      ),
+      fetchInBatches(
+        'contract_files',
+        idsByType['file'] ?? [],
+        'id, file_name',
+        (row: { id: string; file_name: string | null }) => ({
+          key: resKey('file', row.id),
+          name: row.file_name || row.id.slice(0, 8),
+        }),
+      ),
+      fetchInBatches(
+        'stores',
+        idsByType['store'] ?? [],
+        'id, name',
+        (row: { id: string; name: string | null }) => ({
+          key: resKey('store', row.id),
+          name: row.name || row.id.slice(0, 8),
+        }),
+      ),
+      fetchInBatches(
+        'notification_channels',
+        idsByType['channel'] ?? [],
+        'id, name',
+        (row: { id: string; name: string | null }) => ({
+          key: resKey('channel', row.id),
+          name: row.name || row.id.slice(0, 8),
+        }),
+      ),
+      fetchInBatches(
+        'reminder_rules',
+        idsByType['reminder'] ?? [],
+        'id, category, lead_days',
+        (row: { id: string; category: string | null; lead_days: number[] | null }) => ({
+          key: resKey('reminder', row.id),
+          name:
+            (row.category ? `${row.category} · ` : '') +
+            (row.lead_days?.length ? `${row.lead_days.join('/')}天` : '提醒规则'),
+        }),
+      ),
+      fetchInBatches(
+        'position_templates',
+        idsByType['position_template'] ?? [],
+        'id, name',
+        (row: { id: string; name: string | null }) => ({
+          key: resKey('position_template', row.id),
+          name: row.name || row.id.slice(0, 8),
+        }),
+      ),
+    ])
+
+    setResourceNames(names)
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -46,11 +221,33 @@ export default function Audit() {
     if (err) {
       setError(err.message)
       setLogs([])
+      setActorMap({})
+      setResourceNames({})
     } else {
-      setLogs((data as AuditLog[]) ?? [])
+      const list = (data as AuditLog[]) ?? []
+      setLogs(list)
+
+      // 拉取操作人姓名
+      const actorIds = Array.from(new Set(list.map((l) => l.actor_id).filter(Boolean))) as string[]
+      if (actorIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', actorIds)
+        const map: Record<string, string> = {}
+        ;(profiles ?? []).forEach((p: { id: string; full_name: string | null }) => {
+          if (p.full_name) map[p.id] = p.full_name
+        })
+        setActorMap(map)
+      } else {
+        setActorMap({})
+      }
+
+      // 拉取资源可读名称
+      await loadResourceNames(list)
     }
     setLoading(false)
-  }, [])
+  }, [loadResourceNames])
 
   useEffect(() => {
     load()
@@ -63,38 +260,58 @@ export default function Audit() {
     }
   }, [load])
 
-  const filtered = logs.filter((l) => {
-    if (actionFilter && !l.action.startsWith(actionFilter)) return false
-    if (q) {
-      const s = q.toLowerCase()
-      if (
-        !(l.action.toLowerCase().includes(s) ||
-          (l.actor_email ?? '').toLowerCase().includes(s) ||
-          (l.resource ?? '').toLowerCase().includes(s))
-      )
-        return false
-    }
-    return true
-  })
+  const filtered = useMemo(() => {
+    return logs.filter((l) => {
+      if (actionFilter && !l.action.startsWith(actionFilter)) return false
+      if (q) {
+        const s = q.toLowerCase()
+        const actionZh = translateAction(l.action).toLowerCase()
+        const resourceZh = translateResource(l.resource).toLowerCase()
+        const resourceName = (resourceNames[resKey(l.resource, l.resource_id)] ?? '').toLowerCase()
+        const actor = actorLabel(l, actorMap).toLowerCase()
+        const email = (l.actor_email ?? '').toLowerCase()
+        if (
+          !(
+            actionZh.includes(s) ||
+            l.action.toLowerCase().includes(s) ||
+            resourceZh.includes(s) ||
+            (l.resource ?? '').toLowerCase().includes(s) ||
+            resourceName.includes(s) ||
+            actor.includes(s) ||
+            email.includes(s)
+          )
+        )
+          return false
+      }
+      return true
+    })
+  }, [logs, actionFilter, q, actorMap, resourceNames])
 
   // 按 group 分组
   const grouped: Record<string, AuditLog[]> = {}
   for (const l of filtered) {
-    const g =
-      ACTION_GROUPS.find((x) => x.match.test(l.action))?.label ?? '其他'
+    const g = ACTION_GROUPS.find((x) => x.match.test(l.action))?.label ?? '其他'
     ;(grouped[g] ||= []).push(l)
+  }
+
+  function resourceDisplay(l: AuditLog): string {
+    if (!l.resource) return '—'
+    const name = resourceNames[resKey(l.resource, l.resource_id)]
+    const id = l.resource_id ? l.resource_id.slice(0, 8) : ''
+    return `${translateResource(l.resource)} · ${name || id || '—'}`
   }
 
   async function exportCsv() {
     const rows = [
-      ['时间', '操作', '资源', '资源 ID', '门店', '操作人邮箱', 'IP'].join(','),
+      ['时间', '操作', '资源', '资源ID', '门店', '操作人', '操作人邮箱', 'IP'].join(','),
       ...filtered.map((l) =>
         [
           new Date(l.created_at).toLocaleString('zh-CN'),
-          l.action,
-          l.resource ?? '',
-          l.resource_id ?? '',
+          translateAction(l.action),
+          translateResource(l.resource),
+          resourceNames[resKey(l.resource, l.resource_id)] || l.resource_id || '',
           l.store_id ?? '',
+          actorLabel(l, actorMap),
           l.actor_email ?? '',
           l.ip ?? '',
         ]
@@ -127,7 +344,7 @@ export default function Audit() {
           <Field label="搜索">
             <input
               className={inputCls}
-              placeholder="操作 / 邮箱 / 资源"
+              placeholder="操作 / 人名 / 资源"
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
@@ -190,19 +407,19 @@ export default function Audit() {
                             className="col-span-2 truncate rounded bg-slate-100 px-1.5 py-0.5 text-center text-slate-700"
                             title={l.action}
                           >
-                            {l.action}
+                            {translateAction(l.action)}
                           </span>
                           <span
                             className="col-span-3 truncate font-mono text-slate-700"
                             title={l.resource_id ?? undefined}
                           >
-                            {l.resource ? `${l.resource} · ${l.resource_id ?? ''}` : '—'}
+                            {resourceDisplay(l)}
                           </span>
                           <span
                             className="col-span-3 truncate text-slate-500"
                             title={l.actor_email ?? undefined}
                           >
-                            {l.actor_email ?? 'system'}
+                            {actorLabel(l, actorMap)}
                           </span>
                           <span
                             className="col-span-1 truncate text-right text-slate-400"
@@ -212,6 +429,7 @@ export default function Audit() {
                           </span>
                         </li>
                       </Fragment>
+                      
                     )
                   })}
                 </ul>

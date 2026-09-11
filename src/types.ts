@@ -1,4 +1,14 @@
 export type Role = 'hq' | 'store'
+
+/** 职务权限模板（position_templates 表）：默认权限包 + 数据范围 */
+export interface PositionTemplate {
+  id: string
+  name: string
+  scope: Role
+  permissions: Permissions
+  is_system: boolean
+  created_at: string
+}
 export type ContractStatus = 'draft' | 'active' | 'renewed' | 'expired' | 'cancelled'
 // 文件角色：original=合同正本 / attachment=附件 / scan=扫描件 / invoice=发票 / template=模板
 export type FileKind = 'original' | 'attachment' | 'scan' | 'invoice' | 'template'
@@ -29,8 +39,10 @@ export interface Profile {
   phone: string | null
   wechat: string | null
   role: Role
+  /** 职务模板引用（position_templates.id）；为空则回落到 role 默认权限 */
+  position_template_id: string | null
   active: boolean
-  /** 细粒度权限位覆盖（空对象 = 走 role 默认权限） */
+  /** 细粒度权限位覆盖（空对象 = 走职务/角色默认权限） */
   permissions: Permissions
   last_login_at: string | null
   created_at: string
@@ -165,7 +177,7 @@ export interface AuditLog {
   created_at: string
 }
 
-export const CATEGORIES = ['租赁', '采购', '服务', '劳务', '装修', '广告', '加盟', '其他'] as const
+export const CATEGORIES = ['采购', '设计', '印刷', '安装', '施工', '服务', '广告', '装修', '租赁', '制作', '其他'] as const
 
 export const FILE_KIND_LABEL: Record<FileKind, string> = {
   original: '合同正本',
