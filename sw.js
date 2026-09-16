@@ -5,7 +5,7 @@
  *  - 同源静态资源（JS/CSS/图片/字体）：stale-while-revalidate
  *  - 跨域请求（Supabase / COS API 等）不经过缓存，直接走网络
  */
-const CACHE = 'hetong-cache-0.2.41-1789555122433'
+const CACHE = 'hetong-cache-0.2.42-1789555752210'
 const CORE = [
   './index.html',
   './manifest.webmanifest',
