@@ -26,10 +26,106 @@
     <meta name="application-name" content="合同云" />
     <link rel="apple-touch-icon" href="/heto/icons/appicon-192.png" />
     <title>合同云</title>
-    <script type="module" crossorigin src="/heto/assets/index-DR-sbWBw.js"></script>
-    <link rel="stylesheet" crossorigin href="/heto/assets/index-DUD1n-GC.css">
+    <style>
+      /* 启动 splash：JS 挂载成功后被 React 替换；JS 加载失败时用户也不至于面对纯白屏 */
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        background: #f8fafc;
+      }
+      #boot-splash .logo {
+        width: 48px;
+        height: 48px;
+        display: grid;
+        place-items: center;
+        border-radius: 16px;
+        background: #f97316;
+        color: #fff;
+        font-size: 20px;
+        font-weight: 600;
+        box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+      }
+      #boot-splash .spin {
+        width: 16px;
+        height: 16px;
+        border-radius: 9999px;
+        border: 2px solid #cbd5e1;
+        border-top-color: #f97316;
+        animation: boot-spin 0.8s linear infinite;
+      }
+      #boot-splash .retry {
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+      }
+      #boot-splash .retry button {
+        padding: 8px 24px;
+        border: 0;
+        border-radius: 10px;
+        background: #f97316;
+        color: #fff;
+        font-size: 14px;
+      }
+      #boot-splash .retry .tip {
+        color: #64748b;
+        font-size: 12px;
+      }
+      @keyframes boot-spin {
+        to { transform: rotate(360deg); }
+      }
+    </style>
+    <script>
+      // 启动看门狗：解决安卓 PWA「卡第一屏」问题。
+      // 链路任何一环（SW 回退旧 index.html 引用已删除的旧 JS、弱网模块加载挂死）
+      // 失败时 #root 里的 splash 不会被 React 替换：10 秒后自动刷新一次（防循环），
+      // 仍失败则显示手动「重新加载」按钮。
+      ;(function () {
+        var KEY = 'app_boot_reloaded'
+        var reloaded = 0
+        try { reloaded = Number(sessionStorage.getItem(KEY) || 0) } catch (e) {}
+        function markAndReload() {
+          try { sessionStorage.setItem(KEY, '1') } catch (e) {}
+          location.reload()
+        }
+        // Vite 动态导入预加载失败（如部署后旧 chunk 已 404）：自动刷新一次兜底
+        window.addEventListener('vite:preloadError', function () {
+          if (reloaded < 1) markAndReload()
+        })
+        function check() {
+          var splash = document.getElementById('boot-splash')
+          if (!splash) { // React 已挂载，启动成功
+            try { sessionStorage.removeItem(KEY) } catch (e) {}
+            return
+          }
+          if (reloaded < 1) markAndReload()
+          else { // 第二次仍卡住：给出手动出口
+            splash.querySelector('.spin').style.display = 'none'
+            splash.querySelector('.retry').style.display = 'flex'
+          }
+        }
+        setTimeout(check, 10000)
+      })()
+    </script>
+    <script type="module" crossorigin src="/heto/assets/index-C5XQ9yKG.js"></script>
+    <link rel="stylesheet" crossorigin href="/heto/assets/index-CedIpaZa.css">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- 启动 splash：React 挂载后整个 #root 内容被替换 -->
+      <div id="boot-splash">
+        <div class="logo">合</div>
+        <div class="spin"></div>
+        <div class="retry">
+          <button onclick="location.reload()">重新加载</button>
+          <div class="tip">网络不稳定，加载失败。请检查网络后重试。</div>
+        </div>
+      </div>
+    </div>
   </body>
 </html>
