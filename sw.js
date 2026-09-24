@@ -5,7 +5,7 @@
  *  - 同源静态资源（JS/CSS/图片/字体）：stale-while-revalidate
  *  - 跨域请求（Supabase / COS API 等）不经过缓存，直接走网络
  */
-const CACHE = 'hetong-cache-0.2.67-1790210349163'
+const CACHE = 'hetong-cache-0.2.68-1790211779984'
 // 导航请求的网络超时：弱网/假连接时 5 秒内没响应就回退缓存首页，避免冷启动长时间白屏
 const NAV_TIMEOUT_MS = 5000
 
